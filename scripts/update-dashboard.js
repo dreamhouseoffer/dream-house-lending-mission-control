@@ -27,6 +27,7 @@ const OPENCLAW_DIR = path.join(HOME, ".openclaw");
 const MC_DIR = path.join(HOME, "Projects", "mission-control");
 const DATA_DIR = path.join(MC_DIR, "src", "data");
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || "";
+const MARKET_SNAPSHOT_PATH = path.join(HOME, ".openclaw", "workspace", "market-snapshot.json");
 
 function log(msg) {
   console.log(`[${new Date().toISOString()}] ${msg}`);
@@ -90,14 +91,41 @@ function buildAgentStatus() {
   log(`Agent status written — ${agents.length} agents`);
 }
 
-// ─── 2. Vega Brief (free market APIs, no LLM) ────────────────────────────────
+// ─── 2. Market Snapshot → /openclaw/workspace/market-snapshot.json ───────────
 
-async function buildVegaBrief() {
-  log("Fetching market data for Vega brief...");
+async function fetchYahooQuote(symbol) {
+  try {
+    const encoded = encodeURIComponent(symbol);
+    const res = await httpsGet(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encoded}?interval=1d&range=2d`,
+      { Accept: "application/json" }
+    );
+    if (res.status !== 200 || !res.body?.chart?.result?.[0]) return null;
+    const meta = res.body.chart.result[0].meta;
+    const price = meta.regularMarketPrice ?? null;
+    const prevClose = meta.chartPreviousClose ?? meta.previousClose ?? null;
+    const changePct = (price !== null && prevClose) ? ((price - prevClose) / prevClose) * 100 : null;
+    return { price, prevClose, changePct };
+  } catch {
+    return null;
+  }
+}
+
+async function buildMarketSnapshot() {
+  log("Fetching market snapshot data...");
+
+  // Load previous snapshot for fallback on failure
+  let prev = {};
+  try {
+    prev = JSON.parse(fs.readFileSync(MARKET_SNAPSHOT_PATH, "utf-8"));
+  } catch { /* first run */ }
+
+  // ── Crypto: CoinGecko ──
+  let cryptoData = prev.crypto || null;
   try {
     const [marketRes, fngRes, globalRes] = await Promise.all([
       httpsGet(
-        "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana&order=market_cap_desc&sparkline=false"
+        "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana&order=market_cap_desc&sparkline=false&price_change_percentage=7d"
       ),
       httpsGet("https://api.alternative.me/fng/?limit=1"),
       httpsGet("https://api.coingecko.com/api/v3/global"),
@@ -107,14 +135,103 @@ async function buildVegaBrief() {
     const btc = coins.find((c) => c.id === "bitcoin");
     const eth = coins.find((c) => c.id === "ethereum");
     const sol = coins.find((c) => c.id === "solana");
-
     const fngData = fngRes.body?.data?.[0];
-    const fngValue = fngData ? Number(fngData.value) : null;
-    const fngLabel = fngData ? fngData.value_classification : "Unknown";
+    const globalInfo = globalRes.body?.data || {};
 
-    const btcDom = globalRes.body?.data?.market_cap_percentage?.btc;
+    const coinEntry = (c) => c ? {
+      price: c.current_price,
+      change24h: c.price_change_percentage_24h ?? null,
+      change7d: c.price_change_percentage_7d_in_currency ?? null,
+      marketCap: c.market_cap ?? null,
+    } : null;
 
-    // Derive a simple market mode from Fear & Greed
+    cryptoData = {
+      btc: coinEntry(btc),
+      eth: coinEntry(eth),
+      sol: coinEntry(sol),
+      totalMarketCap: globalInfo.total_market_cap?.usd ?? null,
+      btcDominance: globalInfo.market_cap_percentage?.btc ?? null,
+      fearGreed: fngData ? {
+        value: Number(fngData.value),
+        label: fngData.value_classification,
+      } : null,
+      status: "live",
+    };
+    log(`Crypto snapshot: BTC $${btc?.current_price?.toLocaleString() ?? "?"}`);
+  } catch (err) {
+    log(`Crypto fetch failed: ${err.message} — using last known`);
+    if (cryptoData) cryptoData.status = "stale";
+  }
+
+  // ── Stocks & Macro: Yahoo Finance (no key needed) ──
+  let stocksData = prev.stocks || null;
+  let macroData = prev.macro || null;
+  try {
+    const [spyQ, qqqQ, tnxQ, dxyQ] = await Promise.all([
+      fetchYahooQuote("SPY"),
+      fetchYahooQuote("QQQ"),
+      fetchYahooQuote("^TNX"),
+      fetchYahooQuote("DX-Y.NYB"),
+    ]);
+
+    stocksData = {
+      spy: spyQ ? { price: spyQ.price, changePct: spyQ.changePct } : { price: null, changePct: null },
+      qqq: qqqQ ? { price: qqqQ.price, changePct: qqqQ.changePct } : { price: null, changePct: null },
+      status: (spyQ || qqqQ) ? "live" : "unavailable",
+    };
+
+    macroData = {
+      treasury10y: tnxQ ? { yield: tnxQ.price, changePct: tnxQ.changePct } : { yield: null, changePct: null, note: "unavailable" },
+      dxy: dxyQ ? { value: dxyQ.price, changePct: dxyQ.changePct } : { value: null, changePct: null, note: "unavailable" },
+      status: (tnxQ || dxyQ) ? "live" : "unavailable",
+    };
+    log(`Stocks: SPY $${spyQ?.price ?? "?"}, QQQ $${qqqQ?.price ?? "?"} | 10Y: ${tnxQ?.price ?? "?"}%`);
+  } catch (err) {
+    log(`Stocks/macro fetch failed: ${err.message} — using last known`);
+    if (stocksData) stocksData.status = "stale";
+    if (macroData) macroData.status = "stale";
+  }
+
+  // ── Mortgage: placeholder (FRED requires API key) ──
+  const mortgageData = prev.mortgage?.rate30y
+    ? { ...prev.mortgage, status: "stale" }
+    : {
+        rate30y: null,
+        status: "unavailable",
+        note: "Live data requires FRED API key (series MORTGAGE30US). Set FRED_API_KEY env var to enable.",
+      };
+
+  const snapshot = {
+    timestamp: new Date().toISOString(),
+    source: "update-dashboard.js",
+    crypto: cryptoData,
+    stocks: stocksData,
+    macro: macroData,
+    mortgage: mortgageData,
+  };
+
+  fs.writeFileSync(MARKET_SNAPSHOT_PATH, JSON.stringify(snapshot, null, 2));
+  log(`Market snapshot written → ${MARKET_SNAPSHOT_PATH}`);
+  return snapshot;
+}
+
+// ─── 3. Vega Brief (free market APIs, no LLM) ────────────────────────────────
+
+async function buildVegaBrief(snapshot) {
+  log("Building Vega brief from market snapshot...");
+  try {
+    const crypto = snapshot?.crypto || {};
+    const stocks = snapshot?.stocks || {};
+    const macro = snapshot?.macro || {};
+
+    const btc = crypto.btc;
+    const eth = crypto.eth;
+    const sol = crypto.sol;
+    const fng = crypto.fearGreed;
+    const fngValue = fng?.value ?? null;
+    const fngLabel = fng?.label ?? "Unknown";
+    const btcDom = crypto.btcDominance;
+
     let marketMode = "Neutral";
     if (fngValue !== null) {
       if (fngValue >= 65) marketMode = "Risk-On";
@@ -122,28 +239,49 @@ async function buildVegaBrief() {
     }
 
     const fmt = (n) =>
-      n >= 1000
+      n == null ? "Unavailable"
+      : n >= 1000
         ? "$" + n.toLocaleString("en-US", { maximumFractionDigits: 0 })
         : "$" + n.toFixed(2);
 
-    const pct = (n) => (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+    const pct = (n) => n == null ? "?" : (n >= 0 ? "+" : "") + n.toFixed(2) + "%";
+
+    const spyStr = stocks.spy?.price
+      ? `${fmt(stocks.spy.price)} (${pct(stocks.spy.changePct)} today)`
+      : "Unavailable";
+    const qqqStr = stocks.qqq?.price
+      ? `${fmt(stocks.qqq.price)} (${pct(stocks.qqq.changePct)} today)`
+      : "Unavailable";
+    const tnxStr = macro.treasury10y?.yield
+      ? `${macro.treasury10y.yield.toFixed(2)}% (${pct(macro.treasury10y.changePct)} today)`
+      : "Unavailable";
+    const dxyStr = macro.dxy?.value
+      ? `${macro.dxy.value.toFixed(2)} (${pct(macro.dxy.changePct)} today)`
+      : "Unavailable";
 
     const brief = {
       lastUpdated: new Date().toISOString(),
       source: "update-dashboard-script",
+      snapshotPath: MARKET_SNAPSHOT_PATH,
       marketMode,
       fearGreed: fngValue !== null ? `${fngValue}/100 — ${fngLabel}` : "Unavailable",
       btcDominance: btcDom ? btcDom.toFixed(1) + "%" : "—",
-      spyTrend: "Live data unavailable — use CoinGecko data below for crypto context",
+      spyTrend: spyStr,
+      qqqTrend: qqqStr,
+      treasury10y: tnxStr,
+      dxy: dxyStr,
       btcStructure: btc
-        ? `${fmt(btc.current_price)} (${pct(btc.price_change_percentage_24h)} 24h)`
+        ? `${fmt(btc.price)} (${pct(btc.change24h)} 24h | ${pct(btc.change7d)} 7d)`
         : "Unavailable",
       ethPrice: eth
-        ? `${fmt(eth.current_price)} (${pct(eth.price_change_percentage_24h)} 24h)`
+        ? `${fmt(eth.price)} (${pct(eth.change24h)} 24h | ${pct(eth.change7d)} 7d)`
         : "Unavailable",
       solPrice: sol
-        ? `${fmt(sol.current_price)} (${pct(sol.price_change_percentage_24h)} 24h)`
+        ? `${fmt(sol.price)} (${pct(sol.change24h)} 24h | ${pct(sol.change7d)} 7d)`
         : "Unavailable",
+      totalCryptoMarketCap: crypto.totalMarketCap
+        ? "$" + (crypto.totalMarketCap / 1e12).toFixed(2) + "T"
+        : "—",
       topOpportunity: "Check Vega's 7am Telegram brief for trade ideas",
       topRisk: `Fear & Greed at ${fngValue ?? "?"}/100 — monitor for sentiment shifts`,
     };
@@ -154,11 +292,11 @@ async function buildVegaBrief() {
     );
     log(`Vega brief written — BTC: ${brief.btcStructure}, Mode: ${marketMode}`);
   } catch (err) {
-    log(`Vega brief fetch failed: ${err.message} — skipping`);
+    log(`Vega brief build failed: ${err.message} — skipping`);
   }
 }
 
-// ─── 3. Anthropic Usage → costs.json ─────────────────────────────────────────
+// ─── 4. Anthropic Usage → costs.json ─────────────────────────────────────────
 
 async function updateCosts() {
   if (!ANTHROPIC_KEY) {
@@ -237,7 +375,7 @@ function updateCostsTimestamp() {
   log("Costs timestamp updated");
 }
 
-// ─── 4. Git commit + push ────────────────────────────────────────────────────
+// ─── 5. Git commit + push ────────────────────────────────────────────────────
 
 function gitPush() {
   log("Committing and pushing to GitHub...");
@@ -275,8 +413,9 @@ function gitPush() {
 
 async function main() {
   log("=== Mission Control Dashboard Update ===");
+  const snapshot = await buildMarketSnapshot();
   buildAgentStatus();
-  await buildVegaBrief();
+  await buildVegaBrief(snapshot);
   await updateCosts();
   gitPush();
   log("=== Done ===");
