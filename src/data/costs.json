@@ -1,19 +1,43 @@
 {
-  "lastUpdated": "2026-03-20",
+  "lastUpdated": "2026-04-04",
   "todayCost": 29.34,
   "yesterdayCost": 85.62,
-  "last7DaysCost": 134.80,
-  "monthToDateCost": 134.80,
+  "last7DaysCost": 134.8,
+  "monthToDateCost": 134.8,
   "dailyBreakdown": [
-    {"date": "Mar 16", "cost": 5.57},
-    {"date": "Mar 18", "cost": 14.27},
-    {"date": "Mar 19", "cost": 85.62},
-    {"date": "Mar 20", "cost": 29.34}
+    {
+      "date": "Mar 16",
+      "cost": 5.57
+    },
+    {
+      "date": "Mar 18",
+      "cost": 14.27
+    },
+    {
+      "date": "Mar 19",
+      "cost": 85.62
+    },
+    {
+      "date": "Mar 20",
+      "cost": 29.34
+    }
   ],
   "topModels": [
-    {"model": "Claude Sonnet 4.6", "cost": 129.23, "percentage": 96},
-    {"model": "Claude Opus 4.6", "cost": 3.78, "percentage": 3},
-    {"model": "Claude Haiku 4.5", "cost": 0.00, "percentage": 1}
+    {
+      "model": "Claude Sonnet 4.6",
+      "cost": 129.23,
+      "percentage": 96
+    },
+    {
+      "model": "Claude Opus 4.6",
+      "cost": 3.78,
+      "percentage": 3
+    },
+    {
+      "model": "Claude Haiku 4.5",
+      "cost": 0,
+      "percentage": 1
+    }
   ],
   "monthlyBudget": 150,
   "optimizationNote": "Light context enabled on all daily crons. Haiku switching in progress."

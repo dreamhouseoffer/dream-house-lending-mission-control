@@ -1,10 +1,13 @@
 {
-  "lastUpdated": "2026-04-03T07:00:00-07:00",
+  "lastUpdated": "2026-04-04T06:03:35.879Z",
   "source": "update-dashboard-script",
-  "marketMode": "Neutral",
-  "spyTrend": "Awaiting next brief — updates weekday mornings at 7am",
-  "btcStructure": "Awaiting next brief — updates weekday mornings at 7am",
-  "topOpportunity": "Check back after the 7am Vega cron runs",
-  "topRisk": "Check back after the 7am Vega cron runs",
-  "note": "This file is written by scripts/update-dashboard.js. The Vega 7am cron will eventually write its analysis here."
+  "marketMode": "Risk-Off",
+  "fearGreed": "11/100 — Extreme Fear",
+  "btcDominance": "56.1%",
+  "spyTrend": "Live data unavailable — use CoinGecko data below for crypto context",
+  "btcStructure": "$66,925 (+0.54% 24h)",
+  "ethPrice": "$2,054 (-0.20% 24h)",
+  "solPrice": "$80.18 (+1.06% 24h)",
+  "topOpportunity": "Check Vega's 7am Telegram brief for trade ideas",
+  "topRisk": "Fear & Greed at 11/100 — monitor for sentiment shifts"
 }
