@@ -61,7 +61,7 @@ export default function TeamPage() {
             paddingLeft: "100%",
           }}
         >
-          Mike: Mapping Kern County keywords... &nbsp;│&nbsp; Jay Jay: Drafting email sequence... &nbsp;│&nbsp; Milo: Monitoring 15 active files... &nbsp;│&nbsp; Millan: Preparing morning briefing... &nbsp;│&nbsp; Nova: Scheduling this week&apos;s content... &nbsp;│&nbsp; Vega: Scanning market data... &nbsp;│&nbsp; Atlas: Reviewing deliverables... &nbsp;│&nbsp; Claude Code: Building features... &nbsp;│&nbsp; System: All clear ✓
+          Mike: Mapping Kern County keywords... &nbsp;│&nbsp; Jay Jay: Drafting email sequence... &nbsp;│&nbsp; Milo: Monitoring 15 active files... &nbsp;│&nbsp; Millan: Preparing morning briefing... &nbsp;│&nbsp; Nova: Scheduling this week&apos;s content... &nbsp;│&nbsp; Vega: Scanning market data... &nbsp;│&nbsp; Jarvis: Reviewing deliverables... &nbsp;│&nbsp; Claude Code: Building features... &nbsp;│&nbsp; System: All clear ✓
         </div>
       </div>
 
@@ -72,7 +72,7 @@ export default function TeamPage() {
           <div className="flex flex-col items-center gap-1 font-mono text-sm">
             <span className="text-white/70 font-semibold">Fonz — Owner / CEO</span>
             <span className="text-white/20">│</span>
-            <span className="text-white/70 font-semibold">Atlas 🦞 — Primary AI</span>
+            <span className="text-white/70 font-semibold">Jarvis 🦞 — Primary AI</span>
             <span className="text-white/20">│</span>
             <div className="text-white/20 text-center">┌──────────────┬──────────────┬──────────────┐</div>
             <div className="grid grid-cols-5 gap-4 w-full text-center mt-1">

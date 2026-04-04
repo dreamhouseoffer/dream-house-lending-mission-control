@@ -75,22 +75,22 @@ const defaultTasks: Task[] = [
 ];
 
 const defaultActivity: ActivityEvent[] = [
-  { id: "a1", text: "Atlas initialized Mission Control", timestamp: new Date().toISOString(), type: "system" },
+  { id: "a1", text: "Jarvis initialized Mission Control", timestamp: new Date().toISOString(), type: "system" },
   { id: "a2", text: "Task created: Set up Mission Control UI", timestamp: new Date().toISOString(), type: "task" },
-  { id: "a3", text: "Atlas began building dashboard components", timestamp: new Date().toISOString(), type: "agent" },
+  { id: "a3", text: "Jarvis began building dashboard components", timestamp: new Date().toISOString(), type: "agent" },
   { id: "a4", text: "Fonz reviewed CRM schema design", timestamp: new Date().toISOString(), type: "task" },
 ];
 
 const defaultSchedule: ScheduledItem[] = [
-  { id: "s1", name: "Heartbeat Check", cron: "*/30 * * * *", humanSchedule: "Every 30 minutes", agent: "Atlas", nextRun: "Next :00 or :30", dayOfWeek: -1, hour: -1 },
-  { id: "s2", name: "Daily Briefing", cron: "0 8 * * *", humanSchedule: "Daily at 8:00 AM", agent: "Atlas", nextRun: "Tomorrow 8:00 AM", dayOfWeek: -1, hour: 8 },
-  { id: "s3", name: "Lead Follow-up Sweep", cron: "0 10 * * 1-5", humanSchedule: "Weekdays at 10:00 AM", agent: "Atlas", nextRun: "Next weekday 10:00 AM", dayOfWeek: 1, hour: 10 },
-  { id: "s4", name: "Weekly Pipeline Report", cron: "0 17 * * 5", humanSchedule: "Fridays at 5:00 PM", agent: "Atlas", nextRun: "Friday 5:00 PM", dayOfWeek: 5, hour: 17 },
-  { id: "s5", name: "Memory Consolidation", cron: "0 23 * * *", humanSchedule: "Daily at 11:00 PM", agent: "Atlas", nextRun: "Tonight 11:00 PM", dayOfWeek: -1, hour: 23 },
+  { id: "s1", name: "Heartbeat Check", cron: "*/30 * * * *", humanSchedule: "Every 30 minutes", agent: "Jarvis", nextRun: "Next :00 or :30", dayOfWeek: -1, hour: -1 },
+  { id: "s2", name: "Daily Briefing", cron: "0 8 * * *", humanSchedule: "Daily at 8:00 AM", agent: "Jarvis", nextRun: "Tomorrow 8:00 AM", dayOfWeek: -1, hour: 8 },
+  { id: "s3", name: "Lead Follow-up Sweep", cron: "0 10 * * 1-5", humanSchedule: "Weekdays at 10:00 AM", agent: "Jarvis", nextRun: "Next weekday 10:00 AM", dayOfWeek: 1, hour: 10 },
+  { id: "s4", name: "Weekly Pipeline Report", cron: "0 17 * * 5", humanSchedule: "Fridays at 5:00 PM", agent: "Jarvis", nextRun: "Friday 5:00 PM", dayOfWeek: 5, hour: 17 },
+  { id: "s5", name: "Memory Consolidation", cron: "0 23 * * *", humanSchedule: "Daily at 11:00 PM", agent: "Jarvis", nextRun: "Tonight 11:00 PM", dayOfWeek: -1, hour: 23 },
 ];
 
 const defaultProjects: Project[] = [
-  { id: "p1", name: "Atlas Mission Control", description: "Building the command center for all operations", progress: 15, status: "active", taskCount: 12 },
+  { id: "p1", name: "Jarvis Mission Control", description: "Building the command center for all operations", progress: 15, status: "active", taskCount: 12 },
   { id: "p2", name: "Mortgage Business Automation", description: "AI operator for loan pipeline — intake to close", progress: 25, status: "active", taskCount: 18 },
   { id: "p3", name: "CRM Build", description: "Automating client/referral workflow and follow-ups", progress: 20, status: "active", taskCount: 9 },
   { id: "p4", name: "Wealth & Investing", description: "Tax liens, land flipping, NOD/NOT strategy", progress: 10, status: "planning", taskCount: 6 },
@@ -100,7 +100,7 @@ const defaultProjects: Project[] = [
 const defaultMemory: MemoryEntry[] = [
   {
     id: "m1", date: new Date().toISOString().split("T")[0], type: "daily",
-    content: "## Daily Log\n\n- Mission Control build started\n- Reviewed task board architecture\n- Atlas initialized all core systems\n- Fonz reviewed CRM schema proposal",
+    content: "## Daily Log\n\n- Mission Control build started\n- Reviewed task board architecture\n- Jarvis initialized all core systems\n- Fonz reviewed CRM schema proposal",
   },
   {
     id: "m2", date: new Date(Date.now() - 86400000).toISOString().split("T")[0], type: "daily",
@@ -108,7 +108,7 @@ const defaultMemory: MemoryEntry[] = [
   },
   {
     id: "m3", date: "2025-01-01", type: "longterm",
-    content: `## Fonz — Core Profile\n\n**Name:** Alfonso "Fonz" Garza\n**Role:** Owner/CEO\n**Mission:** Build a lean, AI-powered operation that generates income and wealth without requiring constant presence.\n\n## Phase Plan\n\n1. **Foundation** — Build Mission Control, set up Atlas, core tools\n2. **Mortgage Ops** — Automate loan pipeline, CRM, lead management\n3. **Wealth Building** — Tax liens, land deals, passive income streams\n4. **Scale** — Team delegation, sub-agents, full autonomy\n\n## Core Goals\n\n- Family, faith, and freedom above all\n- AI-first operations — minimize manual work\n- Multiple income streams under one command center\n- Ship fast, iterate, don't overthink`,
+    content: `## Fonz — Core Profile\n\n**Name:** Alfonso "Fonz" Garza\n**Role:** Owner/CEO\n**Mission:** Build a lean, AI-powered operation that generates income and wealth without requiring constant presence.\n\n## Phase Plan\n\n1. **Foundation** — Build Mission Control, set up Jarvis, core tools\n2. **Mortgage Ops** — Automate loan pipeline, CRM, lead management\n3. **Wealth Building** — Tax liens, land deals, passive income streams\n4. **Scale** — Team delegation, sub-agents, full autonomy\n\n## Core Goals\n\n- Family, faith, and freedom above all\n- AI-first operations — minimize manual work\n- Multiple income streams under one command center\n- Ship fast, iterate, don't overthink`,
   },
 ];
 
@@ -124,9 +124,9 @@ const defaultDocs: Doc[] = [
     content: `# Tax Lien Investment Strategy\n\n## What Are Tax Liens?\nWhen property owners fail to pay taxes, the county sells the debt as a certificate. You buy the lien, earn interest, and potentially acquire the property.\n\n## Target Counties\n- Research counties with high redemption rates\n- Focus on residential properties under $200K assessed value\n- Avoid environmental hazard zones\n\n## Process\n1. Research county auction schedules\n2. Pull property lists 30 days before auction\n3. Filter and rank by criteria\n4. Set max bid amounts\n5. Attend auction (online preferred)\n6. Track redemption periods\n\n## Expected Returns\n- Redemption interest: 8-36% depending on state\n- Property acquisition: Below market value`,
   },
   {
-    id: "d3", title: "Atlas System Architecture", category: "systems", createdAt: new Date().toISOString(),
-    preview: "Technical architecture for the Atlas AI system...",
-    content: `# Atlas System Architecture\n\n## Core Components\n- **Mission Control** — Web dashboard (Next.js)\n- **Atlas Core** — Claude-based orchestrator\n- **Memory System** — Long-term + daily logs\n- **Task Engine** — Kanban + automated workflows\n- **Cron Scheduler** — Recurring automated tasks\n\n## Communication\n- Atlas reads/writes to localStorage (Mission Control)\n- Claude Code handles all development tasks\n- Sub-agents spawned for parallel operations\n\n## Principles\n- Ship fast, iterate often\n- AI handles execution, Fonz handles strategy\n- Everything logged, nothing lost`,
+    id: "d3", title: "Jarvis System Architecture", category: "systems", createdAt: new Date().toISOString(),
+    preview: "Technical architecture for the Jarvis AI system...",
+    content: `# Jarvis System Architecture\n\n## Core Components\n- **Mission Control** — Web dashboard (Next.js)\n- **Jarvis Core** — Claude-based orchestrator\n- **Memory System** — Long-term + daily logs\n- **Task Engine** — Kanban + automated workflows\n- **Cron Scheduler** — Recurring automated tasks\n\n## Communication\n- Jarvis reads/writes to localStorage (Mission Control)\n- Claude Code handles all development tasks\n- Sub-agents spawned for parallel operations\n\n## Principles\n- Ship fast, iterate often\n- AI handles execution, Fonz handles strategy\n- Everything logged, nothing lost`,
   },
 ];
 

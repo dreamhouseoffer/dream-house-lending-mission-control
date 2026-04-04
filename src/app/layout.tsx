@@ -13,7 +13,7 @@ const geistSans = localFont({
 
 export const metadata: Metadata = {
   title: "Mission Control 🦞",
-  description: "Command center for Fonz & Atlas",
+  description: "Command center for Fonz & Jarvis",
 };
 
 export default function RootLayout({

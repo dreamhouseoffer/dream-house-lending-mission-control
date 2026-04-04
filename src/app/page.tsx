@@ -216,7 +216,7 @@ function AddTaskDialog({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-[#1a1a1a] border-white/[0.08]">
-                  <SelectItem value="atlas">Atlas</SelectItem>
+                  <SelectItem value="atlas">Jarvis</SelectItem>
                   <SelectItem value="fonz">Fonz</SelectItem>
                 </SelectContent>
               </Select>
@@ -551,7 +551,7 @@ export default function Home() {
                 </SelectTrigger>
                 <SelectContent className="bg-[#1a1a1a] border-white/[0.08]">
                   <SelectItem value="all">All Assignees</SelectItem>
-                  <SelectItem value="atlas">Atlas</SelectItem>
+                  <SelectItem value="atlas">Jarvis</SelectItem>
                   <SelectItem value="fonz">Fonz</SelectItem>
                 </SelectContent>
               </Select>

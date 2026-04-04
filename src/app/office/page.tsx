@@ -676,7 +676,7 @@ function VirtualOfficeTab() {
             className="mt-2 font-bold"
             style={{ fontSize: 12, color: "#e0e0e0", fontFamily: "monospace" }}
           >
-            Atlas 🦞
+            Jarvis 🦞
           </span>
           <span
             className="mt-1 uppercase"
@@ -926,7 +926,7 @@ function VirtualOfficeTab() {
               paddingLeft: "100%",
             }}
           >
-            Mike: Mapping Kern County keywords... &nbsp;│&nbsp; Jay Jay: Drafting Email sequence... &nbsp;│&nbsp; Milo: Monitoring 15 active files... &nbsp;│&nbsp; Millan: Preparing morning briefing... &nbsp;│&nbsp; Nova: Scheduling this week&apos;s content... &nbsp;│&nbsp; Vega: Scanning market data... &nbsp;│&nbsp; Atlas: Reviewing deliverables... &nbsp;│&nbsp; Fonz: Reviewing Office Screen... &nbsp;│&nbsp; Sub-Agent 2: Processing... &nbsp;│&nbsp; Sub-Agent 1: Idle &nbsp;│&nbsp; Sub-Agent 3: Idle &nbsp;│&nbsp; System: All clear ✓
+            Mike: Mapping Kern County keywords... &nbsp;│&nbsp; Jay Jay: Drafting Email sequence... &nbsp;│&nbsp; Milo: Monitoring 15 active files... &nbsp;│&nbsp; Millan: Preparing morning briefing... &nbsp;│&nbsp; Nova: Scheduling this week&apos;s content... &nbsp;│&nbsp; Vega: Scanning market data... &nbsp;│&nbsp; Jarvis: Reviewing deliverables... &nbsp;│&nbsp; Fonz: Reviewing Office Screen... &nbsp;│&nbsp; Sub-Agent 2: Processing... &nbsp;│&nbsp; Sub-Agent 1: Idle &nbsp;│&nbsp; Sub-Agent 3: Idle &nbsp;│&nbsp; System: All clear ✓
           </div>
         </div>
       </div>
@@ -966,7 +966,7 @@ function VirtualOfficeTab() {
         >
           <div className="flex items-center gap-2 mb-2">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "#4ade80" }} />
-            <span style={{ fontSize: 13, color: "#e0e0e0", fontFamily: "monospace", fontWeight: "bold" }}>Atlas 🦞</span>
+            <span style={{ fontSize: 13, color: "#e0e0e0", fontFamily: "monospace", fontWeight: "bold" }}>Jarvis 🦞</span>
           </div>
           <div style={{ fontSize: 10, color: "#666", fontFamily: "monospace", textTransform: "uppercase", letterSpacing: "0.1em" }}>
             Role: Primary AI

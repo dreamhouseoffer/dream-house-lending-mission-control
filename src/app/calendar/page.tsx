@@ -136,7 +136,7 @@ export default function CalendarPage() {
       name: formName.trim(),
       cron: formCron.trim() || "0 9 * * *",
       humanSchedule: formHuman.trim() || "Custom schedule",
-      agent: formAgent.trim() || "Atlas",
+      agent: formAgent.trim() || "Jarvis",
       nextRun: "Pending",
     };
     const updated = [...schedule, newItem];
@@ -207,7 +207,7 @@ export default function CalendarPage() {
                 <div className="grid gap-1.5">
                   <label className="text-xs text-white/50 font-medium">Agent</label>
                   <Input
-                    placeholder="Atlas"
+                    placeholder="Jarvis"
                     value={formAgent}
                     onChange={(e) => setFormAgent(e.target.value)}
                     className="bg-white/[0.03] border-white/[0.06] text-white placeholder:text-white/20"
