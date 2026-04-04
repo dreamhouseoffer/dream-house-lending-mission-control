@@ -264,7 +264,7 @@ function gitPush() {
       cwd: MC_DIR,
       stdio: "pipe",
     });
-    execSync("git push", { cwd: MC_DIR, stdio: "pipe" });
+    execSync("git push --set-upstream origin main", { cwd: MC_DIR, stdio: "pipe" });
     log("Pushed — Vercel will redeploy in ~30 seconds");
   } catch (err) {
     log(`Git push failed: ${err.message}`);
