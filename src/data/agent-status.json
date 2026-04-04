@@ -1,0 +1,62 @@
+{
+  "lastUpdated": "2026-04-03T00:00:00.000Z",
+  "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
+  "agents": [
+    {
+      "id": "1515ce56-f503-4e8b-bdb2-affa12fc93b5",
+      "name": "Millan 7am Daily Brief",
+      "enabled": true,
+      "schedule": "0 7 * * 1-5",
+      "tz": "America/Los_Angeles",
+      "model": "claude-haiku-4-5-20251001",
+      "lastRunAt": "2026-04-03T14:00:00.000Z",
+      "lastStatus": "ok",
+      "lastDurationMs": 47012,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-04T14:00:00.000Z",
+      "lastError": null
+    },
+    {
+      "id": "f3042599-edc9-44c7-95b1-24dff5fe4e91",
+      "name": "Vega 7am Market Brief",
+      "enabled": true,
+      "schedule": "0 7 * * 1-5",
+      "tz": "America/Los_Angeles",
+      "model": "claude-haiku-4-5-20251001",
+      "lastRunAt": "2026-04-03T14:00:47.038Z",
+      "lastStatus": "ok",
+      "lastDurationMs": 105083,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-04T14:00:00.000Z",
+      "lastError": null
+    },
+    {
+      "id": "535318cc-cf4e-40b6-b094-4267e8d0ed19",
+      "name": "Monday 7am Agent Email Prep",
+      "enabled": false,
+      "schedule": "0 7 * * 1",
+      "tz": "America/Los_Angeles",
+      "model": "claude-haiku-4-5-20251001",
+      "lastRunAt": "2026-03-23T14:00:00.000Z",
+      "lastStatus": "error",
+      "lastDurationMs": 223860,
+      "consecutiveErrors": 1,
+      "nextRunAt": null,
+      "lastError": "HttpError: Network request for 'sendMessage' failed — DISABLED pending fix"
+    },
+    {
+      "id": "38695dd9-2914-4211-9d4d-9dae43b156a5",
+      "name": "Milo 7:30am Pipeline Drafts",
+      "enabled": true,
+      "schedule": "30 7 * * 1-5",
+      "tz": "America/Los_Angeles",
+      "model": "claude-haiku-4-5-20251001",
+      "lastRunAt": "2026-04-03T14:30:00.000Z",
+      "lastStatus": "error",
+      "lastDurationMs": 1187,
+      "consecutiveErrors": 1,
+      "nextRunAt": "2026-04-04T14:30:00.000Z",
+      "lastError": "LLM request rejected: credit balance too low"
+    }
+  ]
+}

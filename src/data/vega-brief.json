@@ -1,0 +1,10 @@
+{
+  "lastUpdated": "2026-04-03T07:00:00-07:00",
+  "source": "update-dashboard-script",
+  "marketMode": "Neutral",
+  "spyTrend": "Awaiting next brief — updates weekday mornings at 7am",
+  "btcStructure": "Awaiting next brief — updates weekday mornings at 7am",
+  "topOpportunity": "Check back after the 7am Vega cron runs",
+  "topRisk": "Check back after the 7am Vega cron runs",
+  "note": "This file is written by scripts/update-dashboard.js. The Vega 7am cron will eventually write its analysis here."
+}
