@@ -1,13 +1,13 @@
 {
-  "lastUpdated": "2026-04-04T06:03:35.879Z",
+  "lastUpdated": "2026-04-04T13:16:14.550Z",
   "source": "update-dashboard-script",
   "marketMode": "Risk-Off",
   "fearGreed": "11/100 — Extreme Fear",
-  "btcDominance": "56.1%",
+  "btcDominance": "56.2%",
   "spyTrend": "Live data unavailable — use CoinGecko data below for crypto context",
-  "btcStructure": "$66,925 (+0.54% 24h)",
-  "ethPrice": "$2,054 (-0.20% 24h)",
-  "solPrice": "$80.18 (+1.06% 24h)",
+  "btcStructure": "$67,097 (+0.67% 24h)",
+  "ethPrice": "$2,050 (+0.18% 24h)",
+  "solPrice": "$80.09 (+1.04% 24h)",
   "topOpportunity": "Check Vega's 7am Telegram brief for trade ideas",
   "topRisk": "Fear & Greed at 11/100 — monitor for sentiment shifts"
 }
