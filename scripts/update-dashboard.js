@@ -291,6 +291,17 @@ async function buildVegaBrief(snapshot) {
       JSON.stringify(brief, null, 2)
     );
     log(`Vega brief written — BTC: ${brief.btcStructure}, Mode: ${marketMode}`);
+
+    // Archive daily brief
+    const briefsDir = path.join(DATA_DIR, "briefs");
+    if (!fs.existsSync(briefsDir)) fs.mkdirSync(briefsDir, { recursive: true });
+    const today = new Date().toISOString().split("T")[0];
+    const dailyBrief = { date: today, ...brief };
+    fs.writeFileSync(
+      path.join(briefsDir, `${today}.json`),
+      JSON.stringify(dailyBrief, null, 2)
+    );
+    log(`Daily brief archived → briefs/${today}.json`);
   } catch (err) {
     log(`Vega brief build failed: ${err.message} — skipping`);
   }
@@ -380,7 +391,7 @@ function updateCostsTimestamp() {
 function gitPush() {
   log("Committing and pushing to GitHub...");
   try {
-    execSync("git add src/data/agent-status.json src/data/vega-brief.json src/data/costs.json", {
+    execSync("git add src/data/agent-status.json src/data/vega-brief.json src/data/costs.json src/data/briefs/", {
       cwd: MC_DIR,
       stdio: "pipe",
     });
