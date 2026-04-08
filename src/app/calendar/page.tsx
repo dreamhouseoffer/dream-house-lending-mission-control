@@ -5,7 +5,6 @@ import { getSchedule, saveSchedule } from "@/lib/store";
 import { ScheduledItem } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogTrigger,
@@ -28,6 +27,66 @@ import {
 
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const TIME_BLOCKS = [6, 8, 10, 12, 14, 16, 18, 20, 22];
+
+// Agent color config
+const AGENT_COLORS: Record<string, { dot: string; bg: string; border: string; text: string }> = {
+  Jarvis: {
+    dot: "bg-blue-500",
+    bg: "bg-blue-500/10",
+    border: "border-blue-500/25",
+    text: "text-blue-400",
+  },
+  Vega: {
+    dot: "bg-yellow-500",
+    bg: "bg-yellow-500/10",
+    border: "border-yellow-500/25",
+    text: "text-yellow-400",
+  },
+  Millan: {
+    dot: "bg-orange-500",
+    bg: "bg-orange-500/10",
+    border: "border-orange-500/25",
+    text: "text-orange-400",
+  },
+  Milo: {
+    dot: "bg-emerald-500",
+    bg: "bg-emerald-500/10",
+    border: "border-emerald-500/25",
+    text: "text-emerald-400",
+  },
+  Mike: {
+    dot: "bg-pink-500",
+    bg: "bg-pink-500/10",
+    border: "border-pink-500/25",
+    text: "text-pink-400",
+  },
+  "Jay Jay": {
+    dot: "bg-cyan-500",
+    bg: "bg-cyan-500/10",
+    border: "border-cyan-500/25",
+    text: "text-cyan-400",
+  },
+  Nova: {
+    dot: "bg-purple-500",
+    bg: "bg-purple-500/10",
+    border: "border-purple-500/25",
+    text: "text-purple-400",
+  },
+};
+
+const DEFAULT_COLORS = {
+  dot: "bg-white/30",
+  bg: "bg-white/[0.04]",
+  border: "border-white/[0.08]",
+  text: "text-white/50",
+};
+
+function getAgentColor(agentName: string) {
+  const key = Object.keys(AGENT_COLORS).find((k) =>
+    agentName.toLowerCase().includes(k.toLowerCase())
+  );
+  return key ? AGENT_COLORS[key] : DEFAULT_COLORS;
+}
 
 function formatHour(hour: number): string {
   if (hour === 0 || hour === 24) return "12 AM";
@@ -64,26 +123,26 @@ function formatWeekRange(dates: Date[]): string {
   return `${first.toLocaleDateString("en-US", opts)} - ${last.getDate()}, ${last.getFullYear()}`;
 }
 
-/** Map dayOfWeek (0=Sun..6=Sat) to grid column index (0=Mon..6=Sun) */
 function dayOfWeekToCol(dow: number): number {
   return dow === 0 ? 6 : dow - 1;
 }
 
-/** Map dayOfWeek=-1 to "all weekdays" columns (Mon-Fri) for daily events, or all 7 for truly recurring */
 function getColumnsForEvent(item: ScheduledItem): number[] {
   if (item.dayOfWeek === undefined || item.dayOfWeek === -1) {
-    // Check cron for weekday-only pattern like "1-5"
     if (item.cron.includes("1-5")) {
-      return [0, 1, 2, 3, 4]; // Mon-Fri
+      return [0, 1, 2, 3, 4];
     }
-    return [0, 1, 2, 3, 4, 5, 6]; // all days
+    return [0, 1, 2, 3, 4, 5, 6];
   }
   return [dayOfWeekToCol(item.dayOfWeek)];
 }
 
 function getTimeBlockIndex(hour: number): number {
   for (let i = 0; i < TIME_BLOCKS.length; i++) {
-    if (hour >= TIME_BLOCKS[i] && (i === TIME_BLOCKS.length - 1 || hour < TIME_BLOCKS[i + 1])) {
+    if (
+      hour >= TIME_BLOCKS[i] &&
+      (i === TIME_BLOCKS.length - 1 || hour < TIME_BLOCKS[i + 1])
+    ) {
       return i;
     }
   }
@@ -124,7 +183,9 @@ export default function CalendarPage() {
     () =>
       schedule.filter(
         (item) =>
-          item.hour !== undefined && item.hour !== -1 && getTimeBlockIndex(item.hour) !== -1
+          item.hour !== undefined &&
+          item.hour !== -1 &&
+          getTimeBlockIndex(item.hour) !== -1
       ),
     [schedule]
   );
@@ -150,33 +211,35 @@ export default function CalendarPage() {
   }
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] text-white p-6">
-      {/* Header */}
+    <div className="min-h-screen bg-[#080808] text-white p-5">
       <div className="max-w-[1400px] mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <CalendarIcon className="h-5 w-5 text-white/50" />
-            <h1 className="text-xl font-semibold tracking-tight">Calendar</h1>
+        {/* Header */}
+        <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center gap-2.5">
+            <CalendarIcon className="h-4 w-4 text-white/35" />
+            <h1 className="text-lg font-semibold tracking-tight text-white/80">
+              Calendar
+            </h1>
           </div>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger
               render={
-                <Button className="bg-white/[0.08] border-white/[0.06] text-white hover:bg-white/[0.12] text-sm h-8 px-3">
-                  <Plus className="h-4 w-4 mr-1.5" />
+                <Button className="bg-white/[0.06] border-white/[0.06] text-white/70 hover:bg-white/[0.10] text-xs h-8 px-3">
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
                   Add Schedule
                 </Button>
               }
             />
-            <DialogContent className="bg-[#141414] border border-white/[0.06] text-white sm:max-w-md">
+            <DialogContent className="bg-[#0f0f0f] border border-white/[0.06] text-white sm:max-w-md">
               <DialogHeader>
-                <DialogTitle className="text-white">Add Schedule</DialogTitle>
-                <DialogDescription className="text-white/40">
-                  Create a new scheduled event for your calendar.
+                <DialogTitle className="text-white/90">Add Schedule</DialogTitle>
+                <DialogDescription className="text-white/35">
+                  Create a new scheduled event.
                 </DialogDescription>
               </DialogHeader>
               <div className="grid gap-3 py-2">
                 <div className="grid gap-1.5">
-                  <label className="text-xs text-white/50 font-medium">Name</label>
+                  <label className="text-xs text-white/45 font-medium">Name</label>
                   <Input
                     placeholder="Daily Briefing"
                     value={formName}
@@ -185,7 +248,9 @@ export default function CalendarPage() {
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <label className="text-xs text-white/50 font-medium">Cron Expression</label>
+                  <label className="text-xs text-white/45 font-medium">
+                    Cron Expression
+                  </label>
                   <Input
                     placeholder="0 8 * * *"
                     value={formCron}
@@ -194,7 +259,7 @@ export default function CalendarPage() {
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <label className="text-xs text-white/50 font-medium">
+                  <label className="text-xs text-white/45 font-medium">
                     Human-Readable Schedule
                   </label>
                   <Input
@@ -205,7 +270,7 @@ export default function CalendarPage() {
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <label className="text-xs text-white/50 font-medium">Agent</label>
+                  <label className="text-xs text-white/45 font-medium">Agent</label>
                   <Input
                     placeholder="Jarvis"
                     value={formAgent}
@@ -219,7 +284,7 @@ export default function CalendarPage() {
                   render={
                     <Button
                       variant="outline"
-                      className="border-white/[0.06] text-white/60 hover:bg-white/[0.04] hover:text-white"
+                      className="border-white/[0.06] text-white/50 hover:bg-white/[0.04] hover:text-white"
                     />
                   }
                 >
@@ -227,7 +292,7 @@ export default function CalendarPage() {
                 </DialogClose>
                 <Button
                   onClick={handleAddSchedule}
-                  className="bg-white/[0.08] text-white hover:bg-white/[0.14] border border-white/[0.06]"
+                  className="bg-white/[0.07] text-white/80 hover:bg-white/[0.12] border border-white/[0.06]"
                 >
                   Create
                 </Button>
@@ -236,14 +301,27 @@ export default function CalendarPage() {
           </Dialog>
         </div>
 
+        {/* Agent Color Legend */}
+        <div className="mb-4 flex flex-wrap gap-2">
+          {Object.entries(AGENT_COLORS).map(([name, colors]) => (
+            <div
+              key={name}
+              className="flex items-center gap-1.5 text-[10px] text-white/40"
+            >
+              <span className={`size-2 rounded-full ${colors.dot}`} />
+              {name}
+            </div>
+          ))}
+        </div>
+
         {/* Week navigation */}
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setWeekOffset((o) => o - 1)}
-              className="h-7 w-7 text-white/50 hover:text-white hover:bg-white/[0.06]"
+              className="h-7 w-7 text-white/40 hover:text-white hover:bg-white/[0.05]"
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -251,17 +329,19 @@ export default function CalendarPage() {
               variant="ghost"
               size="icon"
               onClick={() => setWeekOffset((o) => o + 1)}
-              className="h-7 w-7 text-white/50 hover:text-white hover:bg-white/[0.06]"
+              className="h-7 w-7 text-white/40 hover:text-white hover:bg-white/[0.05]"
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium text-white/80 ml-1">{weekLabel}</span>
+            <span className="text-sm font-medium text-white/70 ml-1">
+              {weekLabel}
+            </span>
           </div>
           {!isCurrentWeek && (
             <Button
               variant="ghost"
               onClick={() => setWeekOffset(0)}
-              className="text-xs text-white/40 hover:text-white hover:bg-white/[0.06] h-7 px-2"
+              className="text-xs text-white/35 hover:text-white hover:bg-white/[0.05] h-7 px-2"
             >
               Today
             </Button>
@@ -270,61 +350,55 @@ export default function CalendarPage() {
 
         {/* Recurring events banner */}
         {recurringEvents.length > 0 && (
-          <div className="mb-4 rounded-lg border border-white/[0.06] bg-white/[0.02] p-3">
+          <div className="mb-4 rounded-lg border border-white/[0.05] bg-white/[0.01] p-3">
             <div className="flex items-center gap-2 mb-2">
-              <Repeat className="h-3.5 w-3.5 text-white/30" />
-              <span className="text-xs font-medium text-white/40 uppercase tracking-wider">
+              <Repeat className="h-3.5 w-3.5 text-white/25" />
+              <span className="text-[10px] font-semibold text-white/35 uppercase tracking-widest">
                 Recurring
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
-              {recurringEvents.map((item) => (
-                <div
-                  key={item.id}
-                  className="flex items-center gap-2 rounded-md bg-white/[0.04] border border-white/[0.06] px-2.5 py-1.5"
-                >
-                  <Badge
-                    variant="outline"
-                    className="border-violet-500/30 bg-violet-500/10 text-violet-300 text-[10px] px-1.5 py-0"
+              {recurringEvents.map((item) => {
+                const colors = getAgentColor(item.agent);
+                return (
+                  <div
+                    key={item.id}
+                    className={`flex items-center gap-2 rounded-md ${colors.bg} border ${colors.border} px-2.5 py-1.5`}
                   >
-                    {item.humanSchedule}
-                  </Badge>
-                  <span className="text-xs text-white/70">{item.name}</span>
-                  <span className="text-[10px] text-white/30">{item.agent}</span>
-                </div>
-              ))}
+                    <span className={`size-1.5 rounded-full ${colors.dot} shrink-0`} />
+                    <span className="text-xs text-white/65">{item.name}</span>
+                    <span className={`text-[10px] ${colors.text} font-mono`}>
+                      {item.humanSchedule}
+                    </span>
+                    <span className="text-[10px] text-white/25">{item.agent}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
 
         {/* Weekly grid */}
-        <div className="rounded-lg border border-white/[0.06] overflow-hidden">
+        <div className="rounded-lg border border-white/[0.05] overflow-hidden">
           {/* Day headers */}
-          <div className="grid grid-cols-[64px_repeat(7,1fr)] border-b border-white/[0.06]">
+          <div className="grid grid-cols-[64px_repeat(7,1fr)] border-b border-white/[0.05]">
             <div className="p-2" />
             {DAYS.map((day, i) => {
               const date = weekDates[i];
-              const isToday =
-                isCurrentWeek &&
-                i === todayCol;
+              const isToday = isCurrentWeek && i === todayCol;
               return (
                 <div
                   key={day}
-                  className={`p-2 text-center border-l border-white/[0.06] ${
-                    isToday ? "bg-white/[0.04]" : ""
-                  }`}
+                  className={`p-2 text-center border-l border-white/[0.05] ${isToday ? "bg-white/[0.03]" : ""}`}
                 >
                   <div
-                    className={`text-xs font-medium ${
-                      isToday ? "text-white" : "text-white/40"
-                    }`}
+                    className={`text-xs font-medium ${isToday ? "text-white" : "text-white/35"}`}
                   >
                     {day}
                   </div>
                   <div
-                    className={`text-lg font-semibold mt-0.5 ${
-                      isToday ? "text-white" : "text-white/20"
-                    }`}
+                    className={`text-lg font-bold mt-0.5 ${isToday ? "text-white" : "text-white/18"}`}
+                    style={!isToday ? { color: "rgba(255,255,255,0.18)" } : {}}
                   >
                     {date.getDate()}
                   </div>
@@ -337,19 +411,15 @@ export default function CalendarPage() {
           {TIME_BLOCKS.map((hour, rowIdx) => (
             <div
               key={hour}
-              className={`grid grid-cols-[64px_repeat(7,1fr)] ${
-                rowIdx < TIME_BLOCKS.length - 1 ? "border-b border-white/[0.04]" : ""
-              }`}
+              className={`grid grid-cols-[64px_repeat(7,1fr)] ${rowIdx < TIME_BLOCKS.length - 1 ? "border-b border-white/[0.03]" : ""}`}
               style={{ minHeight: "72px" }}
             >
-              {/* Time label */}
-              <div className="p-2 flex items-start justify-end pr-3 border-r border-white/[0.06]">
-                <span className="text-[10px] text-white/25 font-mono tabular-nums leading-none mt-0.5">
+              <div className="p-2 flex items-start justify-end pr-3 border-r border-white/[0.05]">
+                <span className="text-[10px] text-white/20 font-mono tabular-nums leading-none mt-0.5">
                   {formatHour(hour)}
                 </span>
               </div>
 
-              {/* Day cells */}
               {DAYS.map((_, colIdx) => {
                 const cellEvents = gridEvents.filter((item) => {
                   const cols = getColumnsForEvent(item);
@@ -362,35 +432,36 @@ export default function CalendarPage() {
                 return (
                   <div
                     key={colIdx}
-                    className={`border-l border-white/[0.06] p-1 ${
-                      isToday ? "bg-white/[0.02]" : ""
-                    }`}
+                    className={`border-l border-white/[0.04] p-1 ${isToday ? "bg-white/[0.015]" : ""}`}
                   >
-                    {cellEvents.map((item) => (
-                      <div
-                        key={`${item.id}-${colIdx}`}
-                        className="rounded-md bg-white/[0.04] border border-white/[0.06] hover:bg-white/[0.07] transition-colors p-1.5 mb-1 cursor-default group"
-                      >
-                        <div className="text-[11px] font-medium text-white/80 leading-tight truncate">
-                          {item.name}
-                        </div>
-                        <div className="flex items-center gap-1 mt-1">
-                          <Clock className="h-2.5 w-2.5 text-white/20" />
-                          <span className="text-[9px] text-white/30 truncate">
-                            {item.humanSchedule}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between mt-1">
-                          <div className="flex items-center gap-1">
-                            <Bot className="h-2.5 w-2.5 text-white/20" />
-                            <span className="text-[9px] text-white/30">{item.agent}</span>
+                    {cellEvents.map((item) => {
+                      const colors = getAgentColor(item.agent);
+                      return (
+                        <div
+                          key={`${item.id}-${colIdx}`}
+                          className={`rounded-md ${colors.bg} border ${colors.border} hover:opacity-80 transition-opacity p-1.5 mb-1 cursor-default`}
+                        >
+                          <div className="flex items-center gap-1 mb-0.5">
+                            <span className={`size-1.5 rounded-full ${colors.dot} shrink-0`} />
+                            <div className="text-[11px] font-medium text-white/80 leading-tight truncate">
+                              {item.name}
+                            </div>
                           </div>
-                          <span className="text-[8px] text-white/15 font-mono">
-                            {item.nextRun}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-2.5 w-2.5 text-white/20" />
+                            <span className="text-[9px] text-white/30 truncate">
+                              {item.humanSchedule}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <Bot className="h-2.5 w-2.5 text-white/15" />
+                            <span className={`text-[9px] ${colors.text}`}>
+                              {item.agent}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 );
               })}
