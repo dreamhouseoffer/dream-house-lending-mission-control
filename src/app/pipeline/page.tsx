@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -581,10 +581,42 @@ function Dashboard({
 
 export default function PipelinePage() {
   const [loans, setLoans] = useState<Loan[] | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
-  if (!loans) {
-    return <UploadArea onParsed={setLoans} />;
+  // Load persisted pipeline from localStorage on mount
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("pipelineData");
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setLoans(parsed);
+        }
+      }
+    } catch {}
+    setLoaded(true);
+  }, []);
+
+  function handleLoans(newLoans: Loan[]) {
+    setLoans(newLoans);
+    try {
+      localStorage.setItem("pipelineData", JSON.stringify(newLoans));
+    } catch {}
   }
 
-  return <Dashboard loans={loans} onReset={() => setLoans(null)} />;
+  function handleReset() {
+    setLoans(null);
+    try {
+      localStorage.removeItem("pipelineData");
+    } catch {}
+  }
+
+  // Avoid hydration mismatch — don't render until localStorage is checked
+  if (!loaded) return null;
+
+  if (!loans) {
+    return <UploadArea onParsed={handleLoans} />;
+  }
+
+  return <Dashboard loans={loans} onReset={handleReset} />;
 }
