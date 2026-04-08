@@ -14,11 +14,13 @@ import {
   Archive,
   CheckSquare,
   X,
+  GitBranch,
 } from "lucide-react";
 
 const links = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/vega", label: "Vega", icon: Zap },
+  { href: "/pipeline", label: "Pipeline", icon: GitBranch },
   { href: "/calendar", label: "Calendar", icon: Calendar },
   { href: "/projects", label: "Projects", icon: FolderKanban },
   { href: "/tasks", label: "Tasks", icon: CheckSquare },
@@ -30,6 +32,7 @@ const links = [
 // Per-route accent colors for active state
 const accentColors: Record<string, string> = {
   "/vega": "text-yellow-400 bg-yellow-500/10",
+  "/pipeline": "text-blue-400 bg-blue-500/10",
   "/calendar": "text-blue-400 bg-blue-500/10",
   "/projects": "text-purple-400 bg-purple-500/10",
   "/tasks": "text-cyan-400 bg-cyan-500/10",

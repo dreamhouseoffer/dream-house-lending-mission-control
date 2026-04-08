@@ -36,6 +36,22 @@ interface LiveMarketData {
   };
 }
 
+interface KrakenAsset {
+  asset: string;
+  rawBalance: number;
+  usdValue: number | null;
+  pct: number;
+}
+
+interface KrakenPortfolio {
+  connected: boolean;
+  assets: KrakenAsset[];
+  totalUSD: number;
+  lastUpdated: string;
+  cached?: boolean;
+  error?: string;
+}
+
 interface VegaResponse {
   conviction: "HIGH" | "MEDIUM" | "LOW";
   verdict: string;
@@ -175,6 +191,8 @@ export default function VegaPage() {
   const [loadingMarket, setLoadingMarket] = useState(true);
   const [lastFetched, setLastFetched] = useState<Date | null>(null);
   const [latestBrief, setLatestBrief] = useState<Brief | null>(null);
+  const [krakenPortfolio, setKrakenPortfolio] = useState<KrakenPortfolio | null>(null);
+  const [loadingKraken, setLoadingKraken] = useState(true);
 
   const [stocks, setStocks] = useState<StockItem[]>([
     { ticker: "AAPL", price: "—", change: "—", live: false },
@@ -211,6 +229,24 @@ export default function VegaPage() {
     const iv = setInterval(fetchMarketData, 30_000);
     return () => clearInterval(iv);
   }, [fetchMarketData]);
+
+  // ─── Fetch Kraken portfolio ────────────────────────────────────────────────
+
+  useEffect(() => {
+    fetch("/api/kraken")
+      .then((r) => r.json())
+      .then((data: KrakenPortfolio) => setKrakenPortfolio(data))
+      .catch(() =>
+        setKrakenPortfolio({
+          connected: false,
+          assets: [],
+          totalUSD: 0,
+          lastUpdated: new Date().toISOString(),
+          error: "Failed to reach Kraken API",
+        })
+      )
+      .finally(() => setLoadingKraken(false));
+  }, []);
 
   // ─── Fetch latest brief ────────────────────────────────────────────────────
 
@@ -404,24 +440,132 @@ export default function VegaPage() {
       </header>
 
       <div className="p-6 space-y-6">
-        {/* ══ Section 1: Portfolio Placeholder ══ */}
+        {/* ══ Section 1: My Portfolio (Kraken) ══ */}
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-4">
             <h2 className="text-sm font-semibold text-white/70 flex items-center gap-2">
               <span>💼</span> My Portfolio
             </h2>
-            <Badge className="bg-yellow-500/10 text-yellow-400/70 border-yellow-500/20 text-[10px]">
-              Coming Soon
-            </Badge>
+            {loadingKraken ? (
+              <span className="text-[10px] text-white/25">Loading...</span>
+            ) : krakenPortfolio?.connected ? (
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex size-1.5">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
+                </span>
+                <span className="text-[10px] text-emerald-400">Kraken Connected</span>
+              </div>
+            ) : (
+              <Badge className="bg-red-500/10 text-red-400/70 border-red-500/20 text-[10px]">
+                {krakenPortfolio?.error?.includes("not configured")
+                  ? "Keys Not Set"
+                  : "Disconnected"}
+              </Badge>
+            )}
           </div>
-          <div className="rounded-lg border border-dashed border-white/[0.08] bg-white/[0.01] p-6 text-center">
-            <p className="text-sm text-white/30">
-              Connect Kraken API to see your live portfolio
-            </p>
-            <p className="text-xs text-white/20 mt-1">
-              Holdings, P&amp;L, allocation, and DCA tracking will appear here
-            </p>
-          </div>
+
+          {loadingKraken ? (
+            <div className="rounded-lg border border-white/[0.05] bg-white/[0.01] p-6 text-center">
+              <p className="text-sm text-white/25">Fetching portfolio...</p>
+            </div>
+          ) : !krakenPortfolio?.connected ? (
+            <div className="rounded-lg border border-dashed border-white/[0.08] bg-white/[0.01] p-6 text-center">
+              <p className="text-sm text-white/30">
+                {krakenPortfolio?.error ?? "Unable to connect to Kraken"}
+              </p>
+              <p className="text-xs text-white/20 mt-1">
+                Set KRAKEN_API_KEY and KRAKEN_PRIVATE_KEY in Vercel environment variables
+              </p>
+            </div>
+          ) : krakenPortfolio.assets.length === 0 ? (
+            <div className="rounded-lg border border-white/[0.05] bg-white/[0.01] p-6 text-center">
+              <p className="text-sm text-white/30">No balances found</p>
+            </div>
+          ) : (
+            <>
+              {/* Total value */}
+              <div className="mb-4 rounded-lg border border-white/[0.05] bg-white/[0.02] p-4">
+                <p className="text-[10px] uppercase tracking-widest text-white/30 mb-1">
+                  Total Portfolio Value
+                </p>
+                <p className="text-3xl font-black text-white/90">
+                  {krakenPortfolio.totalUSD >= 1000
+                    ? "$" +
+                      krakenPortfolio.totalUSD.toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })
+                    : "$" + krakenPortfolio.totalUSD.toFixed(2)}
+                </p>
+              </div>
+
+              {/* Holdings table */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-white/30 border-b border-white/[0.05]">
+                      <th className="text-left py-2 font-medium">Asset</th>
+                      <th className="text-right py-2 font-medium">Amount</th>
+                      <th className="text-right py-2 font-medium">USD Value</th>
+                      <th className="text-right py-2 font-medium">% of Portfolio</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {krakenPortfolio.assets.map((holding) => (
+                      <tr
+                        key={holding.asset}
+                        className="border-b border-white/[0.03] hover:bg-white/[0.02]"
+                      >
+                        <td className="py-2.5 font-mono font-bold text-white/80">
+                          {holding.asset}
+                        </td>
+                        <td className="py-2.5 text-right font-mono text-white/55">
+                          {holding.rawBalance < 0.001
+                            ? holding.rawBalance.toFixed(6)
+                            : holding.rawBalance < 1
+                              ? holding.rawBalance.toFixed(4)
+                              : holding.rawBalance.toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 4,
+                                })}
+                        </td>
+                        <td className="py-2.5 text-right font-mono text-white/75">
+                          {holding.usdValue != null
+                            ? holding.usdValue >= 1000
+                              ? "$" +
+                                holding.usdValue.toLocaleString("en-US", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })
+                              : "$" + holding.usdValue.toFixed(2)
+                            : "—"}
+                        </td>
+                        <td className="py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <div className="w-16 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-yellow-400/60"
+                                style={{ width: `${Math.min(holding.pct, 100)}%` }}
+                              />
+                            </div>
+                            <span className="font-mono text-white/50 w-10 text-right">
+                              {holding.pct.toFixed(1)}%
+                            </span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <p className="text-[10px] text-white/20 mt-3 flex items-center gap-1">
+                {krakenPortfolio.cached ? "Cached" : "Live"} · Kraken · Prices via CoinGecko ·{" "}
+                {new Date(krakenPortfolio.lastUpdated).toLocaleTimeString()}
+              </p>
+            </>
+          )}
         </div>
 
         {/* ══ Section 2: Market Signals ══ */}
