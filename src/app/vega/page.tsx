@@ -8,19 +8,32 @@ import { Textarea } from "@/components/ui/textarea";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-interface CryptoMarket {
+interface CoinData {
   id: string;
   name: string;
   symbol: string;
+  image: string;
   current_price: number;
   price_change_percentage_24h: number;
   market_cap: number;
-  image: string;
 }
 
-interface FearGreed {
-  value: string;
-  value_classification: string;
+interface LiveMarketData {
+  lastUpdated: string;
+  cached: boolean;
+  marketMode: "Risk-On" | "Risk-Off" | "Neutral";
+  coins: CoinData[];
+  btcDominance: number | null;
+  totalMarketCap: number | null;
+  fearGreed: { value: number; label: string } | null;
+  stocks: {
+    spy: { price: number | null; changePct: number | null };
+    qqq: { price: number | null; changePct: number | null };
+  };
+  macro: {
+    treasury10y: { yield: number | null; changePct: number | null };
+    dxy: { value: number | null; changePct: number | null };
+  };
 }
 
 interface VegaResponse {
@@ -44,7 +57,14 @@ interface StockItem {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatPrice(n: number): string {
-  if (n >= 1000) return "$" + n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (n >= 1000)
+    return (
+      "$" +
+      n.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })
+    );
   return "$" + n.toFixed(2);
 }
 
@@ -59,7 +79,7 @@ function pctColor(pct: number): string {
   return pct >= 0 ? "text-emerald-400" : "text-red-400";
 }
 
-function pctStr(pct: number | null): string {
+function pctStr(pct: number | null | undefined): string {
   if (pct === null || pct === undefined) return "—";
   return (pct >= 0 ? "+" : "") + pct.toFixed(2) + "%";
 }
@@ -79,41 +99,14 @@ const verdictColor: Record<string, string> = {
   WATCH: "bg-blue-500/20 text-blue-400 border-blue-500/30",
 };
 
-// ─── Vega Brief Types ────────────────────────────────────────────────────────
-
-interface VegaBrief {
-  lastUpdated: string | null;
-  marketMode: string;
-  fearGreed?: string;
-  btcDominance?: string;
-  spyTrend: string;
-  btcStructure: string;
-  ethPrice?: string;
-  solPrice?: string;
-  topOpportunity: string;
-  topRisk: string;
-  error?: string;
-}
-
-const fallbackBrief: VegaBrief = {
-  lastUpdated: null,
-  marketMode: "—",
-  spyTrend: "Loading...",
-  btcStructure: "Loading...",
-  topOpportunity: "Loading...",
-  topRisk: "Loading...",
-};
-
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function VegaPage() {
-  // Crypto data
-  const [cryptoData, setCryptoData] = useState<CryptoMarket[]>([]);
-  const [fng, setFng] = useState<FearGreed | null>(null);
-  const [btcDominance, setBtcDominance] = useState<number | null>(null);
+  const [liveMarket, setLiveMarket] = useState<LiveMarketData | null>(null);
   const [loadingMarket, setLoadingMarket] = useState(true);
+  const [lastFetched, setLastFetched] = useState<Date | null>(null);
 
-  // Stock watchlist
+  // Stock watchlist (user-editable, no live API yet)
   const [stocks, setStocks] = useState<StockItem[]>([
     { ticker: "AAPL", price: "—", change: "—", live: false },
     { ticker: "NVDA", price: "—", change: "—", live: false },
@@ -128,48 +121,15 @@ export default function VegaPage() {
   const [vegaResponse, setVegaResponse] = useState<VegaResponse | null>(null);
   const [vegaLoading, setVegaLoading] = useState(false);
 
-  // Brief (cached — updated by update-dashboard.js, zero LLM tokens)
-  const [brief, setBrief] = useState<VegaBrief>(fallbackBrief);
-  const [briefRefreshing, setBriefRefreshing] = useState(false);
-
-  // Ticker strip
-  const [tickerPrices, setTickerPrices] = useState<Record<string, { price: number; change: number }>>({});
-
-  // ─── Fetch Market Data ───────────────────────────────────────────────────
+  // ─── Fetch Live Market Data ──────────────────────────────────────────────
 
   const fetchMarketData = useCallback(async () => {
     try {
-      const [marketRes, fngRes, globalRes] = await Promise.all([
-        fetch(
-          "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=bitcoin,ethereum,solana,cardano,chainlink&order=market_cap_desc&sparkline=false"
-        ),
-        fetch("https://api.alternative.me/fng/?limit=1"),
-        fetch("https://api.coingecko.com/api/v3/global"),
-      ]);
-
-      if (marketRes.ok) {
-        const data = await marketRes.json();
-        setCryptoData(data);
-
-        // Build ticker prices from crypto
-        const tp: Record<string, { price: number; change: number }> = {};
-        for (const c of data) {
-          if (c.id === "bitcoin") tp["BTC"] = { price: c.current_price, change: c.price_change_percentage_24h };
-          if (c.id === "ethereum") tp["ETH"] = { price: c.current_price, change: c.price_change_percentage_24h };
-        }
-        setTickerPrices(tp);
-      }
-
-      if (fngRes.ok) {
-        const data = await fngRes.json();
-        if (data.data?.[0]) setFng(data.data[0]);
-      }
-
-      if (globalRes.ok) {
-        const data = await globalRes.json();
-        if (data.data?.market_cap_percentage?.btc) {
-          setBtcDominance(data.data.market_cap_percentage.btc);
-        }
+      const res = await fetch("/api/live-market");
+      if (res.ok) {
+        const data: LiveMarketData = await res.json();
+        setLiveMarket(data);
+        setLastFetched(new Date());
       }
     } catch {
       // silent
@@ -183,23 +143,6 @@ export default function VegaPage() {
     const iv = setInterval(fetchMarketData, 30_000);
     return () => clearInterval(iv);
   }, [fetchMarketData]);
-
-  const fetchBrief = useCallback(async () => {
-    setBriefRefreshing(true);
-    try {
-      const res = await fetch("/api/vega-brief");
-      const data: VegaBrief = await res.json();
-      setBrief(data);
-    } catch {
-      // keep existing brief
-    } finally {
-      setBriefRefreshing(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchBrief();
-  }, [fetchBrief]);
 
   // ─── Ask Vega Handler ────────────────────────────────────────────────────
 
@@ -252,10 +195,6 @@ export default function VegaPage() {
     setNewTicker("");
   }
 
-  function handleRefreshBrief() {
-    fetchBrief();
-  }
-
   const examplePrompts = [
     "Analyze BTC right now",
     "Is NVDA a buy?",
@@ -263,20 +202,77 @@ export default function VegaPage() {
     "Best crypto plays this week?",
   ];
 
-  // ─── SPY/QQQ hardcoded ticker (no free API) ─────────────────────────────
+  // ─── Derived data ────────────────────────────────────────────────────────
+
+  const btc = liveMarket?.coins.find((c) => c.id === "bitcoin");
+  const eth = liveMarket?.coins.find((c) => c.id === "ethereum");
+  const sol = liveMarket?.coins.find((c) => c.id === "solana");
+  const fng = liveMarket?.fearGreed;
+  const spy = liveMarket?.stocks.spy;
+  const qqq = liveMarket?.stocks.qqq;
+  const dxy = liveMarket?.macro.dxy;
+
+  // Ticker strip — all live
   const tickerStrip = [
-    { sym: "SPY", price: "~520", change: null as number | null },
-    { sym: "QQQ", price: "~440", change: null as number | null },
-    { sym: "BTC", price: tickerPrices["BTC"] ? formatPrice(tickerPrices["BTC"].price) : "...", change: tickerPrices["BTC"]?.change ?? null },
-    { sym: "ETH", price: tickerPrices["ETH"] ? formatPrice(tickerPrices["ETH"].price) : "...", change: tickerPrices["ETH"]?.change ?? null },
-    { sym: "DXY", price: "~104", change: null as number | null },
+    {
+      sym: "SPY",
+      price: spy?.price != null ? formatPrice(spy.price) : "...",
+      change: spy?.changePct ?? null,
+    },
+    {
+      sym: "QQQ",
+      price: qqq?.price != null ? formatPrice(qqq.price) : "...",
+      change: qqq?.changePct ?? null,
+    },
+    {
+      sym: "BTC",
+      price: btc ? formatPrice(btc.current_price) : "...",
+      change: btc?.price_change_percentage_24h ?? null,
+    },
+    {
+      sym: "ETH",
+      price: eth ? formatPrice(eth.current_price) : "...",
+      change: eth?.price_change_percentage_24h ?? null,
+    },
+    {
+      sym: "DXY",
+      price: dxy?.value != null ? dxy.value.toFixed(2) : "...",
+      change: dxy?.changePct ?? null,
+    },
   ];
+
+  // Market brief rows (derived from live data)
+  const marketMode = liveMarket?.marketMode ?? "—";
+  const fngStr = fng ? `${fng.value}/100 — ${fng.label}` : "—";
+  const btcDomStr = liveMarket?.btcDominance
+    ? `${liveMarket.btcDominance.toFixed(1)}%`
+    : "—";
+  const btcStr = btc
+    ? `${formatPrice(btc.current_price)} (${pctStr(btc.price_change_percentage_24h)} 24h)`
+    : "—";
+  const ethStr = eth
+    ? `${formatPrice(eth.current_price)} (${pctStr(eth.price_change_percentage_24h)} 24h)`
+    : "—";
+  const solStr = sol
+    ? `${formatPrice(sol.current_price)} (${pctStr(sol.price_change_percentage_24h)} 24h)`
+    : "—";
+  const spyStr =
+    spy?.price != null
+      ? `${formatPrice(spy.price)} (${pctStr(spy.changePct)} today)`
+      : "—";
+  const dxyStr =
+    dxy?.value != null
+      ? `${dxy.value.toFixed(2)} (${pctStr(dxy.changePct)} today)`
+      : "—";
+  const topRisk = fng
+    ? `Fear & Greed at ${fng.value}/100 — monitor for sentiment shifts`
+    : "Monitor market sentiment";
 
   // Fear & Greed color
   const fngColor = fng
-    ? Number(fng.value) >= 60
+    ? fng.value >= 60
       ? "text-emerald-400"
-      : Number(fng.value) >= 40
+      : fng.value >= 40
         ? "text-yellow-400"
         : "text-red-400"
     : "text-white/40";
@@ -289,18 +285,21 @@ export default function VegaPage() {
           <div key={t.sym} className="flex items-center gap-2 shrink-0">
             <span className="text-xs font-mono text-white/50">{t.sym}</span>
             <span className="text-xs font-mono text-white/80">{t.price}</span>
-            {t.change !== null && (
+            {t.change !== null ? (
               <span className={`text-xs font-mono ${pctColor(t.change)}`}>
                 {pctStr(t.change)}
               </span>
-            )}
-            {t.change === null && (
-              <span className="text-[10px] text-white/20">est.</span>
+            ) : (
+              <span className="text-[10px] text-white/20">...</span>
             )}
           </div>
         ))}
         <div className="ml-auto flex items-center gap-1.5 shrink-0">
-          <span className="text-[10px] text-white/30">Updates every 30s</span>
+          <span className="text-[10px] text-white/30">
+            {lastFetched
+              ? `Live · ${lastFetched.toLocaleTimeString()}`
+              : "Loading..."}
+          </span>
           <span className="relative flex size-1.5">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
             <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
@@ -335,57 +334,101 @@ export default function VegaPage() {
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
             <h2 className="text-sm font-semibold text-white/80 mb-4 flex items-center gap-2">
               <span className="text-base">📊</span> Market Pulse
+              {!loadingMarket && (
+                <span className="ml-auto flex items-center gap-1 text-[10px] text-emerald-400/70">
+                  <span className="relative flex size-1.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
+                  </span>
+                  Live
+                </span>
+              )}
             </h2>
 
             {loadingMarket ? (
-              <p className="text-xs text-white/30 py-4 text-center">Loading market data...</p>
+              <p className="text-xs text-white/30 py-4 text-center">
+                Loading market data...
+              </p>
             ) : (
               <div className="space-y-4">
                 {/* Key prices */}
                 <div className="grid grid-cols-3 gap-3">
-                  {["SPY", "QQQ", "BTC"].map((sym) => {
-                    const btc = cryptoData.find((c) => c.id === "bitcoin");
-                    const isBTC = sym === "BTC";
-                    return (
-                      <div key={sym} className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
-                        <p className="text-[10px] uppercase tracking-wider text-white/40">{sym}</p>
-                        <p className="text-lg font-semibold text-white/90 mt-1">
-                          {isBTC && btc ? formatPrice(btc.current_price) : sym === "SPY" ? "~$520" : "~$440"}
+                  {[
+                    {
+                      sym: "SPY",
+                      price: spy?.price ?? null,
+                      change: spy?.changePct ?? null,
+                    },
+                    {
+                      sym: "QQQ",
+                      price: qqq?.price ?? null,
+                      change: qqq?.changePct ?? null,
+                    },
+                    {
+                      sym: "BTC",
+                      price: btc?.current_price ?? null,
+                      change: btc?.price_change_percentage_24h ?? null,
+                    },
+                  ].map(({ sym, price, change }) => (
+                    <div
+                      key={sym}
+                      className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3"
+                    >
+                      <p className="text-[10px] uppercase tracking-wider text-white/40">
+                        {sym}
+                      </p>
+                      <p className="text-lg font-semibold text-white/90 mt-1">
+                        {price != null ? formatPrice(price) : "—"}
+                      </p>
+                      {change != null ? (
+                        <p className={`text-xs mt-0.5 ${pctColor(change)}`}>
+                          {pctStr(change)}
                         </p>
-                        {isBTC && btc ? (
-                          <p className={`text-xs mt-0.5 ${pctColor(btc.price_change_percentage_24h)}`}>
-                            {pctStr(btc.price_change_percentage_24h)}
-                          </p>
-                        ) : (
-                          <p className="text-[10px] text-white/20 mt-0.5">Approximate</p>
-                        )}
-                      </div>
-                    );
-                  })}
+                      ) : (
+                        <p className="text-[10px] text-white/20 mt-0.5">—</p>
+                      )}
+                    </div>
+                  ))}
                 </div>
 
                 {/* Indicators row */}
                 <div className="grid grid-cols-3 gap-3">
                   <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
-                    <p className="text-[10px] uppercase tracking-wider text-white/40">Fear & Greed</p>
+                    <p className="text-[10px] uppercase tracking-wider text-white/40">
+                      Fear & Greed
+                    </p>
                     <p className={`text-lg font-semibold mt-1 ${fngColor}`}>
                       {fng ? fng.value : "—"}
                     </p>
                     <p className="text-[10px] text-white/30 mt-0.5">
-                      {fng ? fng.value_classification : "Loading..."}
+                      {fng ? fng.label : "Loading..."}
                     </p>
                   </div>
                   <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
-                    <p className="text-[10px] uppercase tracking-wider text-white/40">BTC Dominance</p>
+                    <p className="text-[10px] uppercase tracking-wider text-white/40">
+                      BTC Dom.
+                    </p>
                     <p className="text-lg font-semibold text-white/90 mt-1">
-                      {btcDominance ? btcDominance.toFixed(1) + "%" : "—"}
+                      {liveMarket?.btcDominance
+                        ? liveMarket.btcDominance.toFixed(1) + "%"
+                        : "—"}
                     </p>
                     <p className="text-[10px] text-white/30 mt-0.5">CoinGecko</p>
                   </div>
                   <div className="rounded-lg border border-white/[0.06] bg-white/[0.03] p-3">
-                    <p className="text-[10px] uppercase tracking-wider text-white/40">DXY</p>
-                    <p className="text-lg font-semibold text-white/90 mt-1">~104</p>
-                    <p className="text-[10px] text-white/20 mt-0.5">Approximate</p>
+                    <p className="text-[10px] uppercase tracking-wider text-white/40">
+                      DXY
+                    </p>
+                    <p className="text-lg font-semibold text-white/90 mt-1">
+                      {dxy?.value != null ? dxy.value.toFixed(2) : "—"}
+                    </p>
+                    {dxy?.changePct != null ? (
+                      <p className={`text-[10px] mt-0.5 ${pctColor(dxy.changePct)}`}>
+                        {pctStr(dxy.changePct)}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-white/20 mt-0.5">Yahoo Finance</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -398,7 +441,7 @@ export default function VegaPage() {
               <span className="text-base">🪙</span> Crypto Watchlist
             </h2>
 
-            {cryptoData.length === 0 ? (
+            {!liveMarket || liveMarket.coins.length === 0 ? (
               <p className="text-xs text-white/30 py-4 text-center">Loading...</p>
             ) : (
               <div className="overflow-x-auto">
@@ -412,18 +455,27 @@ export default function VegaPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {cryptoData.map((coin) => (
-                      <tr key={coin.id} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
+                    {liveMarket.coins.map((coin) => (
+                      <tr
+                        key={coin.id}
+                        className="border-b border-white/[0.04] hover:bg-white/[0.02]"
+                      >
                         <td className="py-2.5 flex items-center gap-2">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img src={coin.image} alt={coin.name} className="w-5 h-5 rounded-full" />
+                          <img
+                            src={coin.image}
+                            alt={coin.name}
+                            className="w-5 h-5 rounded-full"
+                          />
                           <span className="text-white/80 font-medium">{coin.name}</span>
                           <span className="text-white/30 uppercase">{coin.symbol}</span>
                         </td>
                         <td className="py-2.5 text-right text-white/80 font-mono">
                           {formatPrice(coin.current_price)}
                         </td>
-                        <td className={`py-2.5 text-right font-mono ${pctColor(coin.price_change_percentage_24h)}`}>
+                        <td
+                          className={`py-2.5 text-right font-mono ${pctColor(coin.price_change_percentage_24h)}`}
+                        >
                           {pctStr(coin.price_change_percentage_24h)}
                         </td>
                         <td className="py-2.5 text-right text-white/50 font-mono">
@@ -455,10 +507,19 @@ export default function VegaPage() {
                 </thead>
                 <tbody>
                   {stocks.map((s) => (
-                    <tr key={s.ticker} className="border-b border-white/[0.04] hover:bg-white/[0.02]">
-                      <td className="py-2.5 text-white/80 font-mono font-medium">{s.ticker}</td>
-                      <td className="py-2.5 text-right text-white/50 font-mono">{s.price}</td>
-                      <td className="py-2.5 text-right text-white/30 font-mono">{s.change}</td>
+                    <tr
+                      key={s.ticker}
+                      className="border-b border-white/[0.04] hover:bg-white/[0.02]"
+                    >
+                      <td className="py-2.5 text-white/80 font-mono font-medium">
+                        {s.ticker}
+                      </td>
+                      <td className="py-2.5 text-right text-white/50 font-mono">
+                        {s.price}
+                      </td>
+                      <td className="py-2.5 text-right text-white/30 font-mono">
+                        {s.change}
+                      </td>
                       <td className="py-2.5 text-right">
                         <span className="text-[10px] text-white/20">
                           {s.live ? "Live" : "Offline"}
@@ -471,7 +532,7 @@ export default function VegaPage() {
             </div>
 
             <p className="text-[10px] text-white/20 mt-3 mb-3">
-              Connect Yahoo Finance API for live stock data
+              Add individual stocks to track (display only)
             </p>
 
             <div className="flex gap-2">
@@ -537,11 +598,14 @@ export default function VegaPage() {
               <div className="mt-5 rounded-lg border border-white/[0.08] bg-white/[0.03] p-5 space-y-4">
                 {/* Top badges */}
                 <div className="flex items-center gap-3">
-                  <Badge className={`${verdictColor[vegaResponse.verdict] || verdictColor["WATCH"]} border text-sm px-3 py-1`}>
+                  <Badge
+                    className={`${verdictColor[vegaResponse.verdict] || verdictColor["WATCH"]} border text-sm px-3 py-1`}
+                  >
                     {vegaResponse.verdict}
                   </Badge>
                   <span className="text-sm text-white/50">
-                    {convictionEmoji[vegaResponse.conviction] || "⚡"} {vegaResponse.conviction} Conviction
+                    {convictionEmoji[vegaResponse.conviction] || "⚡"}{" "}
+                    {vegaResponse.conviction} Conviction
                   </span>
                 </div>
 
@@ -555,8 +619,12 @@ export default function VegaPage() {
                 ].map((s) =>
                   s.content ? (
                     <div key={s.label}>
-                      <h3 className="text-[11px] uppercase tracking-wider text-white/40 mb-1">{s.label}</h3>
-                      <p className="text-sm text-white/70 leading-relaxed">{s.content}</p>
+                      <h3 className="text-[11px] uppercase tracking-wider text-white/40 mb-1">
+                        {s.label}
+                      </h3>
+                      <p className="text-sm text-white/70 leading-relaxed">
+                        {s.content}
+                      </p>
                     </div>
                   ) : null
                 )}
@@ -574,33 +642,55 @@ export default function VegaPage() {
             )}
           </div>
 
-          {/* Vega's Daily Brief */}
+          {/* Market Brief — Live */}
           <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-white/80 flex items-center gap-2">
-                <span className="text-base">📋</span> Vega&apos;s Daily Brief
+                <span className="text-base">📋</span> Market Brief
               </h2>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={handleRefreshBrief}
-                disabled={briefRefreshing}
-                className="text-xs h-7 border-white/[0.08] text-white/50 hover:text-white/80"
-              >
-                {briefRefreshing ? "Refreshing..." : "Refresh Brief"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {liveMarket?.cached && (
+                  <span className="text-[10px] text-yellow-400/60 border border-yellow-400/20 rounded px-1.5 py-0.5">
+                    cached
+                  </span>
+                )}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={fetchMarketData}
+                  disabled={loadingMarket}
+                  className="text-xs h-7 border-white/[0.08] text-white/50 hover:text-white/80"
+                >
+                  {loadingMarket ? "Loading..." : "Refresh"}
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-3">
               {[
-                { label: "Market Mode", value: brief.marketMode, color: brief.marketMode === "Risk-On" ? "text-emerald-400" : brief.marketMode === "Risk-Off" ? "text-red-400" : "text-yellow-400" },
-                { label: "Fear & Greed", value: brief.fearGreed ?? "—", color: "text-white/70" },
-                { label: "BTC Dom.", value: brief.btcDominance ?? "—", color: "text-white/70" },
-                { label: "BTC", value: brief.btcStructure, color: "text-white/70" },
-                { label: "ETH", value: brief.ethPrice ?? "—", color: "text-white/70" },
-                { label: "SOL", value: brief.solPrice ?? "—", color: "text-white/70" },
-                { label: "Opportunity", value: brief.topOpportunity, color: "text-yellow-400" },
-                { label: "Top Risk", value: brief.topRisk, color: "text-red-400/80" },
+                {
+                  label: "Market Mode",
+                  value: marketMode,
+                  color:
+                    marketMode === "Risk-On"
+                      ? "text-emerald-400"
+                      : marketMode === "Risk-Off"
+                        ? "text-red-400"
+                        : "text-yellow-400",
+                },
+                { label: "Fear & Greed", value: fngStr, color: fngColor },
+                { label: "BTC Dom.", value: btcDomStr, color: "text-white/70" },
+                { label: "BTC", value: btcStr, color: "text-white/70" },
+                { label: "ETH", value: ethStr, color: "text-white/70" },
+                { label: "SOL", value: solStr, color: "text-white/70" },
+                { label: "SPY", value: spyStr, color: "text-white/70" },
+                { label: "DXY", value: dxyStr, color: "text-white/70" },
+                {
+                  label: "Opportunity",
+                  value: "Check Vega's 7am Telegram brief for trade ideas",
+                  color: "text-yellow-400",
+                },
+                { label: "Top Risk", value: topRisk, color: "text-red-400/80" },
               ].map((item) => (
                 <div key={item.label} className="flex items-start gap-3">
                   <span className="text-[10px] uppercase tracking-wider text-white/30 w-28 shrink-0 pt-0.5">
@@ -611,9 +701,13 @@ export default function VegaPage() {
               ))}
             </div>
 
-            <p className="text-[10px] text-white/25 mt-4">
-              Updated by update-dashboard.js (free APIs, zero LLM tokens)
-              {brief.lastUpdated ? ` — ${new Date(brief.lastUpdated).toLocaleString()}` : ""}
+            <p className="text-[10px] text-white/25 mt-4 flex items-center gap-1.5">
+              <span className="relative flex size-1.5">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex size-1.5 rounded-full bg-emerald-500" />
+              </span>
+              Live · CoinGecko · Yahoo Finance · alt.me
+              {lastFetched ? ` — fetched ${lastFetched.toLocaleTimeString()}` : ""}
             </p>
           </div>
         </div>

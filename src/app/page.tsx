@@ -316,7 +316,7 @@ function AICostWidget() {
           <h2 className="text-sm font-medium text-white/90">AI Operations Cost</h2>
         </div>
         <span className="text-[10px] text-white/30">
-          Updated {data?.lastUpdated ?? "—"}
+          Static · last refreshed {data?.lastUpdated ?? "—"}
         </span>
       </div>
 
