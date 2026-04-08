@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-06T19:40:21.878Z",
+  "lastUpdated": "2026-04-08T02:46:22.675Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,12 +9,12 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-06T16:06:47.013Z",
-      "lastStatus": "error",
-      "lastDurationMs": 21152,
-      "consecutiveErrors": 1,
-      "nextRunAt": "2026-04-07T14:00:00.000Z",
-      "lastError": "HttpError: Network request for 'sendMessage' failed!"
+      "lastRunAt": "2026-04-07T14:00:00.020Z",
+      "lastStatus": "ok",
+      "lastDurationMs": 47002,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-08T14:00:00.000Z",
+      "lastError": null
     },
     {
       "id": "f3042599-edc9-44c7-95b1-24dff5fe4e91",
@@ -23,12 +23,12 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-06T16:07:08.165Z",
-      "lastStatus": "error",
-      "lastDurationMs": 20692,
-      "consecutiveErrors": 1,
-      "nextRunAt": "2026-04-07T14:00:00.000Z",
-      "lastError": "HttpError: Network request for 'sendMessage' failed!"
+      "lastRunAt": "2026-04-07T14:00:47.022Z",
+      "lastStatus": "ok",
+      "lastDurationMs": 51446,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-08T14:00:00.000Z",
+      "lastError": null
     },
     {
       "id": "535318cc-cf4e-40b6-b094-4267e8d0ed19",
@@ -40,7 +40,7 @@
       "lastRunAt": "2026-04-06T16:07:28.857Z",
       "lastStatus": "error",
       "lastDurationMs": 20381,
-      "consecutiveErrors": 1,
+      "consecutiveErrors": 0,
       "nextRunAt": "2026-04-13T14:00:00.000Z",
       "lastError": "HttpError: Network request for 'sendMessage' failed!"
     },
@@ -51,12 +51,12 @@
       "schedule": "30 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-06T16:07:49.238Z",
-      "lastStatus": "error",
-      "lastDurationMs": 20685,
-      "consecutiveErrors": 1,
-      "nextRunAt": "2026-04-07T14:30:00.000Z",
-      "lastError": "HttpError: Network request for 'sendMessage' failed!"
+      "lastRunAt": "2026-04-07T14:30:00.022Z",
+      "lastStatus": "ok",
+      "lastDurationMs": 104056,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-08T14:30:00.000Z",
+      "lastError": null
     }
   ]
 }
