@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-08T13:00:02.031Z",
+  "lastUpdated": "2026-04-09T13:00:06.201Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,11 +9,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-07T14:00:00.020Z",
+      "lastRunAt": "2026-04-08T14:00:00.018Z",
       "lastStatus": "ok",
-      "lastDurationMs": 47002,
+      "lastDurationMs": 64952,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-08T14:00:00.000Z",
+      "nextRunAt": "2026-04-09T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -23,11 +23,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-07T14:00:47.022Z",
+      "lastRunAt": "2026-04-08T14:01:04.970Z",
       "lastStatus": "ok",
-      "lastDurationMs": 51446,
+      "lastDurationMs": 95772,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-08T14:00:00.000Z",
+      "nextRunAt": "2026-04-09T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -51,11 +51,25 @@
       "schedule": "30 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-07T14:30:00.022Z",
+      "lastRunAt": "2026-04-08T14:30:00.020Z",
       "lastStatus": "ok",
-      "lastDurationMs": 104056,
+      "lastDurationMs": 149131,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-08T14:30:00.000Z",
+      "nextRunAt": "2026-04-09T14:30:00.000Z",
+      "lastError": null
+    },
+    {
+      "id": "0ccd501e-72de-4746-94b8-dff9e1b7d2d0",
+      "name": "morning-fresh-start",
+      "enabled": true,
+      "schedule": "0 6 * * *",
+      "tz": "America/Los_Angeles",
+      "model": "default",
+      "lastRunAt": "2026-04-09T13:00:00.026Z",
+      "lastStatus": "ok",
+      "lastDurationMs": 5692,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-10T13:00:00.000Z",
       "lastError": null
     }
   ]
