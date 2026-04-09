@@ -15,6 +15,7 @@ import {
   CheckSquare,
   X,
   GitBranch,
+  DollarSign,
 } from "lucide-react";
 
 const links = [
@@ -27,6 +28,7 @@ const links = [
   { href: "/campaigns", label: "Campaigns", icon: Mail },
   { href: "/team", label: "Team", icon: Users },
   { href: "/briefs", label: "Briefs", icon: Archive },
+  { href: "/finance", label: "Finance", icon: DollarSign },
 ];
 
 // Per-route accent colors for active state
@@ -39,6 +41,7 @@ const accentColors: Record<string, string> = {
   "/campaigns": "text-emerald-400 bg-emerald-500/10",
   "/team": "text-orange-400 bg-orange-500/10",
   "/briefs": "text-white/80 bg-white/10",
+  "/finance": "text-amber-400 bg-amber-500/10",
   "/": "text-white/90 bg-white/10",
 };
 
