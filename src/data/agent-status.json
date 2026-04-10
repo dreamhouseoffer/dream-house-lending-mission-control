@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-09T13:00:06.201Z",
+  "lastUpdated": "2026-04-10T13:00:06.446Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,11 +9,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-08T14:00:00.018Z",
+      "lastRunAt": "2026-04-09T14:00:00.050Z",
       "lastStatus": "ok",
-      "lastDurationMs": 64952,
+      "lastDurationMs": 33394,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-09T14:00:00.000Z",
+      "nextRunAt": "2026-04-10T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -23,11 +23,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-08T14:01:04.970Z",
+      "lastRunAt": "2026-04-09T14:00:33.444Z",
       "lastStatus": "ok",
-      "lastDurationMs": 95772,
+      "lastDurationMs": 60516,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-09T14:00:00.000Z",
+      "nextRunAt": "2026-04-10T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -51,11 +51,11 @@
       "schedule": "30 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-08T14:30:00.020Z",
+      "lastRunAt": "2026-04-09T14:30:00.055Z",
       "lastStatus": "ok",
-      "lastDurationMs": 149131,
+      "lastDurationMs": 94663,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-09T14:30:00.000Z",
+      "nextRunAt": "2026-04-10T14:30:00.000Z",
       "lastError": null
     },
     {
