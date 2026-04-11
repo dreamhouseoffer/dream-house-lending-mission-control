@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-10T13:00:06.446Z",
+  "lastUpdated": "2026-04-11T13:00:03.662Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,12 +9,12 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-09T14:00:00.050Z",
-      "lastStatus": "ok",
-      "lastDurationMs": 33394,
-      "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-10T14:00:00.000Z",
-      "lastError": null
+      "lastRunAt": "2026-04-10T14:00:00.051Z",
+      "lastStatus": "error",
+      "lastDurationMs": 40645,
+      "consecutiveErrors": 1,
+      "nextRunAt": "2026-04-13T14:00:00.000Z",
+      "lastError": "HttpError: Network request for 'sendMessage' failed!"
     },
     {
       "id": "f3042599-edc9-44c7-95b1-24dff5fe4e91",
@@ -23,11 +23,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-09T14:00:33.444Z",
+      "lastRunAt": "2026-04-10T14:00:40.696Z",
       "lastStatus": "ok",
-      "lastDurationMs": 60516,
+      "lastDurationMs": 129352,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-10T14:00:00.000Z",
+      "nextRunAt": "2026-04-13T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -51,11 +51,11 @@
       "schedule": "30 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-09T14:30:00.055Z",
+      "lastRunAt": "2026-04-10T14:30:00.044Z",
       "lastStatus": "ok",
-      "lastDurationMs": 94663,
+      "lastDurationMs": 150295,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-10T14:30:00.000Z",
+      "nextRunAt": "2026-04-13T14:30:00.000Z",
       "lastError": null
     },
     {
@@ -65,11 +65,11 @@
       "schedule": "0 6 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-09T13:00:00.026Z",
+      "lastRunAt": "2026-04-11T13:00:00.010Z",
       "lastStatus": "ok",
-      "lastDurationMs": 5692,
+      "lastDurationMs": 198,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-10T13:00:00.000Z",
+      "nextRunAt": "2026-04-12T13:00:00.000Z",
       "lastError": null
     }
   ]
