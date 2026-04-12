@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-11T13:00:03.662Z",
+  "lastUpdated": "2026-04-12T13:00:06.390Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -65,12 +65,26 @@
       "schedule": "0 6 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-11T13:00:00.010Z",
+      "lastRunAt": "2026-04-12T13:00:00.023Z",
       "lastStatus": "ok",
-      "lastDurationMs": 198,
+      "lastDurationMs": 338,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-12T13:00:00.000Z",
+      "nextRunAt": "2026-04-13T13:00:00.000Z",
       "lastError": null
+    },
+    {
+      "id": "f8589b1b-37f4-45a1-bf03-6942f7fb641d",
+      "name": "ReelGhost Auto-Post",
+      "enabled": true,
+      "schedule": "0 7,11,15,19,22 * * *",
+      "tz": "America/Los_Angeles",
+      "model": "default",
+      "lastRunAt": "2026-04-12T05:00:00.050Z",
+      "lastStatus": "error",
+      "lastDurationMs": 25743,
+      "consecutiveErrors": 4,
+      "nextRunAt": "2026-04-12T14:00:00.000Z",
+      "lastError": "Error: Telegram recipient @heartbeat could not be resolved to a numeric chat ID (Call to 'getChat' failed! (400: Bad Request: chat not found))"
     }
   ]
 }
