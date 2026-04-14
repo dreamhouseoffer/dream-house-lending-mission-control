@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-13T13:00:06.095Z",
+  "lastUpdated": "2026-04-14T13:00:05.900Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,12 +9,12 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-10T14:00:00.051Z",
-      "lastStatus": "error",
-      "lastDurationMs": 40645,
-      "consecutiveErrors": 1,
-      "nextRunAt": "2026-04-13T14:00:00.000Z",
-      "lastError": "HttpError: Network request for 'sendMessage' failed!"
+      "lastRunAt": "2026-04-13T14:00:45.810Z",
+      "lastStatus": "ok",
+      "lastDurationMs": 48536,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-14T14:00:00.000Z",
+      "lastError": null
     },
     {
       "id": "f3042599-edc9-44c7-95b1-24dff5fe4e91",
@@ -23,11 +23,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-10T14:00:40.696Z",
+      "lastRunAt": "2026-04-13T14:01:34.346Z",
       "lastStatus": "ok",
-      "lastDurationMs": 129352,
+      "lastDurationMs": 60317,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-13T14:00:00.000Z",
+      "nextRunAt": "2026-04-14T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -37,12 +37,12 @@
       "schedule": "0 7 * * 1",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-06T16:07:28.857Z",
-      "lastStatus": "error",
-      "lastDurationMs": 20381,
+      "lastRunAt": "2026-04-13T14:02:34.663Z",
+      "lastStatus": "ok",
+      "lastDurationMs": 230448,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-13T14:00:00.000Z",
-      "lastError": "HttpError: Network request for 'sendMessage' failed!"
+      "nextRunAt": "2026-04-20T14:00:00.000Z",
+      "lastError": null
     },
     {
       "id": "38695dd9-2914-4211-9d4d-9dae43b156a5",
@@ -51,11 +51,11 @@
       "schedule": "30 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-10T14:30:00.044Z",
+      "lastRunAt": "2026-04-13T14:30:00.009Z",
       "lastStatus": "ok",
-      "lastDurationMs": 150295,
+      "lastDurationMs": 133535,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-13T14:30:00.000Z",
+      "nextRunAt": "2026-04-14T14:30:00.000Z",
       "lastError": null
     },
     {
@@ -65,11 +65,11 @@
       "schedule": "0 6 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-13T13:00:00.004Z",
+      "lastRunAt": "2026-04-14T13:00:00.013Z",
       "lastStatus": "ok",
-      "lastDurationMs": 151,
+      "lastDurationMs": 365,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-14T13:00:00.000Z",
+      "nextRunAt": "2026-04-15T13:00:00.000Z",
       "lastError": null
     },
     {
@@ -79,12 +79,12 @@
       "schedule": "0 7,11,15,19,22 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-13T05:00:00.048Z",
+      "lastRunAt": "2026-04-14T05:00:00.032Z",
       "lastStatus": "error",
-      "lastDurationMs": 32917,
-      "consecutiveErrors": 9,
-      "nextRunAt": "2026-04-13T14:00:00.000Z",
-      "lastError": "Error: Telegram recipient @heartbeat could not be resolved to a numeric chat ID (Call to 'getChat' failed! (400: Bad Request: chat not found))"
+      "lastDurationMs": 18840,
+      "consecutiveErrors": 14,
+      "nextRunAt": "2026-04-14T14:00:00.000Z",
+      "lastError": "FallbackSummaryError: All models failed (2): openai-codex/gpt-5.4: ⚠️ You have hit your ChatGPT usage limit (team plan). Try again in ~712 min. (rate_limit) | anthropic/claude-opus-4-6: Provider anthropic has billing issue (skipping all models) (billing)"
     }
   ]
 }
