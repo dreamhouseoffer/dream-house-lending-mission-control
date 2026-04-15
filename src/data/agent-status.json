@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-15T21:00:06.439Z",
+  "lastUpdated": "2026-04-15T23:00:04.789Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -79,11 +79,11 @@
       "schedule": "0 7,11,15,19,22 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-15T18:00:00.009Z",
+      "lastRunAt": "2026-04-15T22:00:00.015Z",
       "lastStatus": "error",
-      "lastDurationMs": 28323,
-      "consecutiveErrors": 1,
-      "nextRunAt": "2026-04-15T22:00:00.000Z",
+      "lastDurationMs": 37742,
+      "consecutiveErrors": 2,
+      "nextRunAt": "2026-04-16T02:00:00.000Z",
       "lastError": "Error: Telegram recipient @heartbeat could not be resolved to a numeric chat ID (Call to 'getChat' failed! (400: Bad Request: chat not found))"
     },
     {
@@ -93,11 +93,11 @@
       "schedule": "0 14 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": null,
-      "lastStatus": "unknown",
-      "lastDurationMs": null,
+      "lastRunAt": "2026-04-15T21:00:00.021Z",
+      "lastStatus": "ok",
+      "lastDurationMs": 66691,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-15T21:00:00.000Z",
+      "nextRunAt": "2026-04-16T21:00:00.000Z",
       "lastError": null
     }
   ]
