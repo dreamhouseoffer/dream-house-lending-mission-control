@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-14T13:00:05.900Z",
+  "lastUpdated": "2026-04-15T17:13:47.817Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,11 +9,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-13T14:00:45.810Z",
+      "lastRunAt": "2026-04-15T15:59:47.722Z",
       "lastStatus": "ok",
-      "lastDurationMs": 48536,
+      "lastDurationMs": 37802,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-14T14:00:00.000Z",
+      "nextRunAt": "2026-04-16T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -23,11 +23,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-13T14:01:34.346Z",
+      "lastRunAt": "2026-04-15T16:00:25.524Z",
       "lastStatus": "ok",
-      "lastDurationMs": 60317,
+      "lastDurationMs": 76264,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-14T14:00:00.000Z",
+      "nextRunAt": "2026-04-16T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -51,11 +51,11 @@
       "schedule": "30 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-13T14:30:00.009Z",
+      "lastRunAt": "2026-04-15T16:01:41.788Z",
       "lastStatus": "ok",
-      "lastDurationMs": 133535,
+      "lastDurationMs": 106792,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-14T14:30:00.000Z",
+      "nextRunAt": "2026-04-16T14:30:00.000Z",
       "lastError": null
     },
     {
@@ -65,11 +65,11 @@
       "schedule": "0 6 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-14T13:00:00.013Z",
+      "lastRunAt": "2026-04-15T15:59:47.718Z",
       "lastStatus": "ok",
-      "lastDurationMs": 365,
+      "lastDurationMs": 4,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-15T13:00:00.000Z",
+      "nextRunAt": "2026-04-16T13:00:00.000Z",
       "lastError": null
     },
     {
@@ -79,12 +79,26 @@
       "schedule": "0 7,11,15,19,22 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-14T05:00:00.032Z",
-      "lastStatus": "error",
-      "lastDurationMs": 18840,
-      "consecutiveErrors": 14,
-      "nextRunAt": "2026-04-14T14:00:00.000Z",
-      "lastError": "FallbackSummaryError: All models failed (2): openai-codex/gpt-5.4: ⚠️ You have hit your ChatGPT usage limit (team plan). Try again in ~712 min. (rate_limit) | anthropic/claude-opus-4-6: Provider anthropic has billing issue (skipping all models) (billing)"
+      "lastRunAt": "2026-04-15T15:58:48.632Z",
+      "lastStatus": "ok",
+      "lastDurationMs": 59086,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-15T18:00:00.000Z",
+      "lastError": null
+    },
+    {
+      "id": "e6cfa88b-a81a-4dc7-8f3a-bed349fa7e3b",
+      "name": "Milo 2pm Pipeline Update",
+      "enabled": true,
+      "schedule": "0 14 * * 1-5",
+      "tz": "America/Los_Angeles",
+      "model": "anthropic/claude-haiku-4-5-20251001",
+      "lastRunAt": null,
+      "lastStatus": "unknown",
+      "lastDurationMs": null,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-15T21:00:00.000Z",
+      "lastError": null
     }
   ]
 }
