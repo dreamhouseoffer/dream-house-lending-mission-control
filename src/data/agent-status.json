@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-15T17:13:47.817Z",
+  "lastUpdated": "2026-04-15T19:00:08.400Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -79,12 +79,12 @@
       "schedule": "0 7,11,15,19,22 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-15T15:58:48.632Z",
-      "lastStatus": "ok",
-      "lastDurationMs": 59086,
-      "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-15T18:00:00.000Z",
-      "lastError": null
+      "lastRunAt": "2026-04-15T18:00:00.009Z",
+      "lastStatus": "error",
+      "lastDurationMs": 28323,
+      "consecutiveErrors": 1,
+      "nextRunAt": "2026-04-15T22:00:00.000Z",
+      "lastError": "Error: Telegram recipient @heartbeat could not be resolved to a numeric chat ID (Call to 'getChat' failed! (400: Bad Request: chat not found))"
     },
     {
       "id": "e6cfa88b-a81a-4dc7-8f3a-bed349fa7e3b",
