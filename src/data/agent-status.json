@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-16T13:00:05.157Z",
+  "lastUpdated": "2026-04-16T15:00:02.358Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,11 +9,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-15T15:59:47.722Z",
+      "lastRunAt": "2026-04-16T14:00:00.031Z",
       "lastStatus": "ok",
-      "lastDurationMs": 37802,
+      "lastDurationMs": 35845,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-16T14:00:00.000Z",
+      "nextRunAt": "2026-04-17T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -22,12 +22,12 @@
       "enabled": true,
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
-      "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-15T16:00:25.524Z",
+      "model": "openai-codex/gpt-5.4",
+      "lastRunAt": "2026-04-16T14:00:35.876Z",
       "lastStatus": "ok",
-      "lastDurationMs": 76264,
+      "lastDurationMs": 50357,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-16T14:00:00.000Z",
+      "nextRunAt": "2026-04-17T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -51,11 +51,11 @@
       "schedule": "30 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-15T16:01:41.788Z",
+      "lastRunAt": "2026-04-16T14:30:00.011Z",
       "lastStatus": "ok",
-      "lastDurationMs": 106792,
+      "lastDurationMs": 81470,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-16T14:30:00.000Z",
+      "nextRunAt": "2026-04-17T14:30:00.000Z",
       "lastError": null
     },
     {
@@ -98,6 +98,20 @@
       "lastDurationMs": 66691,
       "consecutiveErrors": 0,
       "nextRunAt": "2026-04-16T21:00:00.000Z",
+      "lastError": null
+    },
+    {
+      "id": "40b04233-32ab-46df-8d98-de606d035747",
+      "name": "Vega Technicals Refresh",
+      "enabled": true,
+      "schedule": "45 6 * * 1-5",
+      "tz": "America/Los_Angeles",
+      "model": "openai-codex/gpt-5.4",
+      "lastRunAt": null,
+      "lastStatus": "unknown",
+      "lastDurationMs": null,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-17T13:45:00.000Z",
       "lastError": null
     }
   ]
