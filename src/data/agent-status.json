@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-16T15:00:02.358Z",
+  "lastUpdated": "2026-04-16T17:00:05.984Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -112,6 +112,20 @@
       "lastDurationMs": null,
       "consecutiveErrors": 0,
       "nextRunAt": "2026-04-17T13:45:00.000Z",
+      "lastError": null
+    },
+    {
+      "id": "70695707-49dd-4313-8eda-3c2b02aadf6d",
+      "name": "Vega Weekly BTC Reminder",
+      "enabled": true,
+      "schedule": "0 9 * * 1",
+      "tz": "America/Los_Angeles",
+      "model": "anthropic/claude-haiku-4-5-20251001",
+      "lastRunAt": null,
+      "lastStatus": "unknown",
+      "lastDurationMs": null,
+      "consecutiveErrors": 0,
+      "nextRunAt": "2026-04-20T16:00:00.000Z",
       "lastError": null
     }
   ]
