@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-16T21:00:03.034Z",
+  "lastUpdated": "2026-04-16T23:00:05.371Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -31,34 +31,6 @@
       "lastError": null
     },
     {
-      "id": "535318cc-cf4e-40b6-b094-4267e8d0ed19",
-      "name": "Monday 7am Agent Email Prep",
-      "enabled": true,
-      "schedule": "0 7 * * 1",
-      "tz": "America/Los_Angeles",
-      "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-13T14:02:34.663Z",
-      "lastStatus": "ok",
-      "lastDurationMs": 230448,
-      "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-20T14:00:00.000Z",
-      "lastError": null
-    },
-    {
-      "id": "38695dd9-2914-4211-9d4d-9dae43b156a5",
-      "name": "Milo 7:30am Pipeline Drafts",
-      "enabled": true,
-      "schedule": "30 7 * * 1-5",
-      "tz": "America/Los_Angeles",
-      "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-16T14:30:00.011Z",
-      "lastStatus": "ok",
-      "lastDurationMs": 81470,
-      "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-17T14:30:00.000Z",
-      "lastError": null
-    },
-    {
       "id": "0ccd501e-72de-4746-94b8-dff9e1b7d2d0",
       "name": "morning-fresh-start",
       "enabled": true,
@@ -85,20 +57,6 @@
       "consecutiveErrors": 4,
       "nextRunAt": null,
       "lastError": "Error: Telegram recipient @heartbeat could not be resolved to a numeric chat ID (Call to 'getChat' failed! (400: Bad Request: chat not found))"
-    },
-    {
-      "id": "e6cfa88b-a81a-4dc7-8f3a-bed349fa7e3b",
-      "name": "Milo 2pm Pipeline Update",
-      "enabled": true,
-      "schedule": "0 14 * * 1-5",
-      "tz": "America/Los_Angeles",
-      "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-15T21:00:00.021Z",
-      "lastStatus": "ok",
-      "lastDurationMs": 66691,
-      "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-16T21:00:00.000Z",
-      "lastError": null
     },
     {
       "id": "40b04233-32ab-46df-8d98-de606d035747",
