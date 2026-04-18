@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-18T01:00:01.566Z",
+  "lastUpdated": "2026-04-18T13:00:06.413Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -37,11 +37,11 @@
       "schedule": "0 6 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-17T13:00:00.030Z",
+      "lastRunAt": "2026-04-18T13:00:00.040Z",
       "lastStatus": "ok",
-      "lastDurationMs": 492,
+      "lastDurationMs": 453,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-18T13:00:00.000Z",
+      "nextRunAt": "2026-04-19T13:00:00.000Z",
       "lastError": null
     },
     {
