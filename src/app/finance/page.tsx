@@ -556,41 +556,96 @@ export default function FinancePage() {
             </SectionCard>
 
             <div className="space-y-6">
-              <SectionCard title="Debt Tracker" subtitle="Known debt obligations and review gaps">
-                <div className="space-y-3">
-                  {[
-                    ["Amex balance", fmt(30755), "Critical"],
-                    ["Home mortgage", "TBD", "Add balance"],
-                    ["HELOC", "TBD", "Add balance"],
-                    ["Monthly debt service", fmt(4850), "Known mortgage + HELOC only"],
-                  ].map(([label, value, note]) => (
-                    <div key={label} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm text-white/45">{label}</p>
-                          <p className="mt-1 text-xl font-semibold text-white">{value}</p>
+              <SectionCard title="Debt Tracker" subtitle="Full liability stack — long-term and short-term">
+                <div className="space-y-4">
+                  <div>
+                    <p className="mb-2 text-xs uppercase tracking-[0.18em] text-white/35">Long-Term ({fmt(1868375)})</p>
+                    <div className="space-y-2">
+                      {[
+                        ["Weatherly mortgage (2.75%)", 667968, 4000],
+                        ["Cornerstone mortgage (2.25%)", 148303, 2066],
+                        ["Elm St mortgage (3.25%)", 112045, 1191],
+                        ["HELOC — Weatherly", 240000, 1600],
+                        ["Solar — Cornerstone", 20256, 167],
+                        ["301 Sanford (3.75%)", 127500, 1950],
+                        ["3500 Chester Lane (5.375%)", 302303, 2554],
+                        ["5301 Office Park", 250000, 2300],
+                      ].map(([label, balance, payment]) => (
+                        <div key={label as string} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-sm">
+                          <span className="text-white/65">{label as string}</span>
+                          <div className="text-right">
+                            <span className="text-white">{fmt(balance as number)}</span>
+                            <span className="ml-2 text-xs text-white/40">{fmt(payment as number)}/mo</span>
+                          </div>
                         </div>
-                        <span className="text-xs text-white/45">{note}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <p className="mb-2 text-xs uppercase tracking-[0.18em] text-white/35">Short-Term ({fmt(2549)})</p>
+                    <div className="space-y-2">
+                      {[
+                        ["Marissa Medical", 2149],
+                        ["Marissa Nordstrom", 400],
+                      ].map(([label, balance]) => (
+                        <div key={label as string} className="flex items-center justify-between rounded-xl border border-amber-500/15 bg-amber-500/[0.04] px-3 py-2 text-sm">
+                          <span className="text-white/65">{label as string}</span>
+                          <span className="text-amber-300">{fmt(balance as number)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-white/35">Monthly Debt Service</p>
+                        <p className="mt-1 text-2xl font-semibold text-white">{fmt(15828)}/mo</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs text-white/35">Total Liabilities</p>
+                        <p className="mt-1 text-lg font-semibold text-red-300">{fmt(1870924)}</p>
                       </div>
                     </div>
-                  ))}
+                  </div>
                 </div>
               </SectionCard>
 
-              <SectionCard title="Net Worth Snapshot" subtitle="Placeholders for a fuller balance sheet later">
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                  {[
-                    ["Crypto", "~$1,150", "Kraken BTC"],
-                    ["Real estate equity", "TBD", "Needs updated equity calc"],
-                    ["Business value", "TBD", "Needs valuation method"],
-                    ["Total", "TBD", "Incomplete snapshot"],
-                  ].map(([label, value, note]) => (
-                    <div key={label} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-                      <p className="text-sm text-white/45">{label}</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
-                      <p className="mt-1 text-xs text-white/40">{note}</p>
+              <SectionCard title="Net Worth Snapshot" subtitle="Full balance sheet — assets minus liabilities">
+                <div className="space-y-3">
+                  <div>
+                    <p className="mb-2 text-xs uppercase tracking-[0.18em] text-white/35">Assets</p>
+                    <div className="space-y-2">
+                      {[
+                        ["Real Estate (6 properties)", 3029000, "emerald"],
+                        ["Vehicles (truck, Benzo, Camry)", 141000, "emerald"],
+                        ["Notes Receivable (9.5%)", 70000, "emerald"],
+                        ["Liquid Assets (bank accounts)", 86206, "emerald"],
+                        ["Crypto (Kraken)", 1150, "emerald"],
+                      ].map(([label, value]) => (
+                        <div key={label as string} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-sm">
+                          <span className="text-white/65">{label as string}</span>
+                          <span className="text-emerald-300">{fmt(value as number)}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </div>
+                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-3 py-2">
+                    <div className="flex items-center justify-between text-sm font-semibold">
+                      <span className="text-white/70">Total Assets</span>
+                      <span className="text-emerald-300">{fmt(3326206)}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] px-3 py-2">
+                    <div className="flex items-center justify-between text-sm font-semibold">
+                      <span className="text-white/70">Total Liabilities</span>
+                      <span className="text-red-300">–{fmt(1870924)}</span>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-blue-500/25 bg-blue-500/[0.07] p-4">
+                    <p className="text-xs uppercase tracking-[0.18em] text-white/35">Net Worth</p>
+                    <p className="mt-2 text-3xl font-semibold text-white">{fmt(1455282)}</p>
+                    <p className="mt-1 text-xs text-white/40">Assets {fmt(3326206)} − Liabilities {fmt(1870924)}</p>
+                  </div>
                 </div>
               </SectionCard>
             </div>
