@@ -324,6 +324,34 @@ export default function VegaPage() {
 
   // ─── Derived data ──────────────────────────────────────────────────────────
 
+  // P&L cost basis (hardcoded)
+  const COST_BASIS: Record<string, number> = {
+    BTC: 1294.80, // 0.0156 BTC @ $83,000
+    BABY: 0,
+  };
+  const TOTAL_INVESTED = 1294.80;
+
+  const pnlAssets =
+    krakenPortfolio?.connected
+      ? krakenPortfolio.assets
+          .filter((a) => a.asset !== "USD" && COST_BASIS[a.asset] !== undefined)
+          .map((a) => {
+            const costBasis = COST_BASIS[a.asset];
+            const currentValue = a.usdValue ?? 0;
+            const gainLoss = currentValue - costBasis;
+            const gainLossPct =
+              costBasis > 0 ? (gainLoss / costBasis) * 100 : 0;
+            return { ...a, costBasis, gainLoss, gainLossPct };
+          })
+      : [];
+
+  const pnlCurrentTotal = pnlAssets.reduce(
+    (sum, a) => sum + (a.usdValue ?? 0),
+    0
+  );
+  const pnlTotalGainLoss = pnlCurrentTotal - TOTAL_INVESTED;
+  const pnlTotalPct = (pnlTotalGainLoss / TOTAL_INVESTED) * 100;
+
   const btc = liveMarket?.coins.find((c) => c.id === "bitcoin");
   const eth = liveMarket?.coins.find((c) => c.id === "ethereum");
   const sol = liveMarket?.coins.find((c) => c.id === "solana");
@@ -568,7 +596,112 @@ export default function VegaPage() {
           )}
         </div>
 
-        {/* ══ Section 2: Market Signals ══ */}
+        {/* ══ Section 2: Portfolio P&L ══ */}
+        {!loadingKraken && krakenPortfolio?.connected && pnlAssets.length > 0 && (
+          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
+            <h2 className="text-sm font-semibold text-white/70 mb-4 flex items-center gap-2">
+              <span>📊</span> Portfolio P&amp;L
+            </h2>
+
+            {/* Per-asset P&L table */}
+            <div className="overflow-x-auto mb-4">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-white/30 border-b border-white/[0.05]">
+                    <th className="text-left py-2 font-medium">Asset</th>
+                    <th className="text-right py-2 font-medium">Amount</th>
+                    <th className="text-right py-2 font-medium">Current Value</th>
+                    <th className="text-right py-2 font-medium">Cost Basis</th>
+                    <th className="text-right py-2 font-medium">Gain/Loss ($)</th>
+                    <th className="text-right py-2 font-medium">Gain/Loss (%)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pnlAssets.map((a) => (
+                    <tr
+                      key={a.asset}
+                      className="border-b border-white/[0.03] hover:bg-white/[0.02]"
+                    >
+                      <td className="py-2.5 font-mono font-bold text-white/80">
+                        {a.asset}
+                      </td>
+                      <td className="py-2.5 text-right font-mono text-white/55">
+                        {a.rawBalance < 0.001
+                          ? a.rawBalance.toFixed(6)
+                          : a.rawBalance < 1
+                            ? a.rawBalance.toFixed(4)
+                            : a.rawBalance.toFixed(2)}
+                      </td>
+                      <td className="py-2.5 text-right font-mono text-white/75">
+                        {a.usdValue != null ? "$" + a.usdValue.toFixed(2) : "—"}
+                      </td>
+                      <td className="py-2.5 text-right font-mono text-white/45">
+                        ${a.costBasis.toFixed(2)}
+                      </td>
+                      <td
+                        className="py-2.5 text-right font-mono font-semibold"
+                        style={{ color: a.gainLoss >= 0 ? "#22c55e" : "#ef4444" }}
+                      >
+                        {a.gainLoss >= 0 ? "▲ +" : "▼ "}
+                        ${Math.abs(a.gainLoss).toFixed(2)}
+                      </td>
+                      <td
+                        className="py-2.5 text-right font-mono font-semibold"
+                        style={{ color: a.gainLossPct >= 0 ? "#22c55e" : "#ef4444" }}
+                      >
+                        {a.gainLossPct >= 0 ? "▲ +" : "▼ "}
+                        {Math.abs(a.gainLossPct).toFixed(2)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Summary card */}
+            <div className="rounded-lg border border-white/[0.07] bg-white/[0.03] p-4">
+              <p className="text-[10px] uppercase tracking-widest text-white/30 mb-3">
+                Summary
+              </p>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div>
+                  <p className="text-[10px] text-white/30 mb-1">Total Invested</p>
+                  <p className="text-base font-bold text-white/80 font-mono">
+                    ${TOTAL_INVESTED.toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-white/30 mb-1">Current Value</p>
+                  <p className="text-base font-bold text-white/80 font-mono">
+                    ${pnlCurrentTotal.toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-white/30 mb-1">Total P&amp;L</p>
+                  <p
+                    className="text-base font-bold font-mono"
+                    style={{ color: pnlTotalGainLoss >= 0 ? "#22c55e" : "#ef4444" }}
+                  >
+                    {pnlTotalGainLoss >= 0 ? "▲ +" : "▼ "}$
+                    {Math.abs(pnlTotalGainLoss).toFixed(2)}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-white/30 mb-1">Total P&amp;L %</p>
+                  <p
+                    className="text-base font-bold font-mono"
+                    style={{ color: pnlTotalPct >= 0 ? "#22c55e" : "#ef4444" }}
+                  >
+                    {pnlTotalPct >= 0 ? "▲ +" : "▼ "}
+                    {Math.abs(pnlTotalPct).toFixed(2)}%
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ══ Section 3: Market Signals ══ */}
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-5">
           <h2 className="text-sm font-semibold text-white/70 mb-4 flex items-center gap-2">
             <span>📡</span> Market Signals
@@ -693,7 +826,7 @@ export default function VegaPage() {
           )}
         </div>
 
-        {/* ══ Two-column layout for Ask Vega + Watchlists ══ */}
+        {/* ══ Two-column layout for Ask Vega + Watchlists ══ (Section 4+5) ══ */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           {/* ══ Section 3: Ask Vega ══ */}
           <div className="rounded-xl border border-yellow-500/15 bg-yellow-500/[0.02] p-5">
