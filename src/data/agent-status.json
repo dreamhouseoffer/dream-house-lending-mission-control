@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-21T13:00:06.015Z",
+  "lastUpdated": "2026-04-21T15:00:06.824Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,11 +9,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-20T14:00:00.042Z",
+      "lastRunAt": "2026-04-21T14:00:00.015Z",
       "lastStatus": "ok",
-      "lastDurationMs": 65706,
+      "lastDurationMs": 40211,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-21T14:00:00.000Z",
+      "nextRunAt": "2026-04-22T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -23,11 +23,11 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "openai-codex/gpt-5.4",
-      "lastRunAt": "2026-04-20T14:01:05.748Z",
+      "lastRunAt": "2026-04-21T14:00:40.226Z",
       "lastStatus": "ok",
-      "lastDurationMs": 76194,
+      "lastDurationMs": 58134,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-21T14:00:00.000Z",
+      "nextRunAt": "2026-04-22T14:00:00.000Z",
       "lastError": null
     },
     {
@@ -65,11 +65,11 @@
       "schedule": "45 6 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "openai-codex/gpt-5.4",
-      "lastRunAt": "2026-04-20T13:45:00.029Z",
+      "lastRunAt": "2026-04-21T13:45:00.009Z",
       "lastStatus": "ok",
-      "lastDurationMs": 23477,
+      "lastDurationMs": 18994,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-21T13:45:00.000Z",
+      "nextRunAt": "2026-04-22T13:45:00.000Z",
       "lastError": null
     },
     {
