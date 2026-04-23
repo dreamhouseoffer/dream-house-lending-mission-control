@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-23T01:00:01.646Z",
+  "lastUpdated": "2026-04-23T13:00:06.232Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -37,12 +37,12 @@
       "schedule": "0 6 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-22T13:00:00.036Z",
-      "lastStatus": "ok",
-      "lastDurationMs": 483,
-      "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-23T13:00:00.000Z",
-      "lastError": null
+      "lastRunAt": "2026-04-23T13:00:00.017Z",
+      "lastStatus": "error",
+      "lastDurationMs": 113,
+      "consecutiveErrors": 1,
+      "nextRunAt": "2026-04-24T13:00:00.000Z",
+      "lastError": "Cannot find module '/opt/homebrew/lib/node_modules/openclaw/dist/heartbeat-runner.runtime-DRzY39eR.js' imported from /opt/homebrew/lib/node_modules/openclaw/dist/heartbeat-runner-DU4t-qy6.js"
     },
     {
       "id": "f8589b1b-37f4-45a1-bf03-6942f7fb641d",
