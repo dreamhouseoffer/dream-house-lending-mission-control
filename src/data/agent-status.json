@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-23T13:00:06.232Z",
+  "lastUpdated": "2026-04-23T15:00:05.957Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,12 +9,12 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-22T14:00:00.019Z",
-      "lastStatus": "ok",
-      "lastDurationMs": 67200,
-      "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-23T14:00:00.000Z",
-      "lastError": null
+      "lastRunAt": "2026-04-23T14:00:00.019Z",
+      "lastStatus": "error",
+      "lastDurationMs": 123,
+      "consecutiveErrors": 1,
+      "nextRunAt": "2026-04-24T14:00:00.000Z",
+      "lastError": "FallbackSummaryError: All models failed (1): openai-codex/gpt-5.4: Provider openai-codex is in cooldown (all profiles unavailable) (rate_limit)"
     },
     {
       "id": "f3042599-edc9-44c7-95b1-24dff5fe4e91",
@@ -23,12 +23,12 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "openai-codex/gpt-5.4",
-      "lastRunAt": "2026-04-22T14:01:07.219Z",
-      "lastStatus": "ok",
-      "lastDurationMs": 67640,
-      "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-23T14:00:00.000Z",
-      "lastError": null
+      "lastRunAt": "2026-04-23T14:00:00.142Z",
+      "lastStatus": "error",
+      "lastDurationMs": 56,
+      "consecutiveErrors": 1,
+      "nextRunAt": "2026-04-24T14:00:00.000Z",
+      "lastError": "FallbackSummaryError: All models failed (1): openai-codex/gpt-5.4: Provider openai-codex is in cooldown (all profiles unavailable) (rate_limit)"
     },
     {
       "id": "0ccd501e-72de-4746-94b8-dff9e1b7d2d0",
@@ -65,12 +65,12 @@
       "schedule": "45 6 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "openai-codex/gpt-5.4",
-      "lastRunAt": "2026-04-22T13:45:00.030Z",
-      "lastStatus": "ok",
-      "lastDurationMs": 30883,
-      "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-23T13:45:00.000Z",
-      "lastError": null
+      "lastRunAt": "2026-04-23T13:45:00.014Z",
+      "lastStatus": "error",
+      "lastDurationMs": 177,
+      "consecutiveErrors": 1,
+      "nextRunAt": "2026-04-24T13:45:00.000Z",
+      "lastError": "FallbackSummaryError: All models failed (1): openai-codex/gpt-5.4: Provider openai-codex is in cooldown (all profiles unavailable) (rate_limit)"
     },
     {
       "id": "70695707-49dd-4313-8eda-3c2b02aadf6d",
