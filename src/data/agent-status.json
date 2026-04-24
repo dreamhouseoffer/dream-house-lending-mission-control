@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-24T13:00:05.179Z",
+  "lastUpdated": "2026-04-24T15:00:06.768Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,12 +9,12 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-23T14:00:00.019Z",
+      "lastRunAt": "2026-04-24T14:00:00.011Z",
       "lastStatus": "error",
-      "lastDurationMs": 123,
-      "consecutiveErrors": 1,
-      "nextRunAt": "2026-04-24T14:00:00.000Z",
-      "lastError": "FallbackSummaryError: All models failed (1): openai-codex/gpt-5.4: Provider openai-codex is in cooldown (all profiles unavailable) (rate_limit)"
+      "lastDurationMs": 28158,
+      "consecutiveErrors": 2,
+      "nextRunAt": "2026-04-27T14:00:00.000Z",
+      "lastError": "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/opt/homebrew/lib/node_modules/openclaw/dist/usage-format-DLvGF1Ze.js' imported from /opt/homebrew/lib/node_modules/openclaw/dist/server-Cv5hzFG4.js"
     },
     {
       "id": "f3042599-edc9-44c7-95b1-24dff5fe4e91",
@@ -23,12 +23,12 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "openai-codex/gpt-5.4",
-      "lastRunAt": "2026-04-23T14:00:00.142Z",
+      "lastRunAt": "2026-04-24T14:00:28.169Z",
       "lastStatus": "error",
-      "lastDurationMs": 56,
-      "consecutiveErrors": 1,
-      "nextRunAt": "2026-04-24T14:00:00.000Z",
-      "lastError": "FallbackSummaryError: All models failed (1): openai-codex/gpt-5.4: Provider openai-codex is in cooldown (all profiles unavailable) (rate_limit)"
+      "lastDurationMs": 35480,
+      "consecutiveErrors": 2,
+      "nextRunAt": "2026-04-27T14:00:00.000Z",
+      "lastError": "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/opt/homebrew/lib/node_modules/openclaw/dist/usage-format-DLvGF1Ze.js' imported from /opt/homebrew/lib/node_modules/openclaw/dist/server-Cv5hzFG4.js"
     },
     {
       "id": "0ccd501e-72de-4746-94b8-dff9e1b7d2d0",
@@ -65,12 +65,12 @@
       "schedule": "45 6 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "openai-codex/gpt-5.4",
-      "lastRunAt": "2026-04-23T13:45:00.014Z",
+      "lastRunAt": "2026-04-24T13:45:00.013Z",
       "lastStatus": "error",
-      "lastDurationMs": 177,
-      "consecutiveErrors": 1,
-      "nextRunAt": "2026-04-24T13:45:00.000Z",
-      "lastError": "FallbackSummaryError: All models failed (1): openai-codex/gpt-5.4: Provider openai-codex is in cooldown (all profiles unavailable) (rate_limit)"
+      "lastDurationMs": 14767,
+      "consecutiveErrors": 2,
+      "nextRunAt": "2026-04-27T13:45:00.000Z",
+      "lastError": "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/opt/homebrew/lib/node_modules/openclaw/dist/usage-format-DLvGF1Ze.js' imported from /opt/homebrew/lib/node_modules/openclaw/dist/server-Cv5hzFG4.js"
     },
     {
       "id": "70695707-49dd-4313-8eda-3c2b02aadf6d",
