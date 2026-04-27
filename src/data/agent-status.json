@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-27T01:00:05.018Z",
+  "lastUpdated": "2026-04-27T13:00:01.327Z",
   "note": "Auto-updated by scripts/update-dashboard.js — do not edit manually",
   "agents": [
     {
@@ -9,12 +9,12 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-24T14:00:00.011Z",
-      "lastStatus": "error",
-      "lastDurationMs": 28158,
-      "consecutiveErrors": 2,
-      "nextRunAt": "2026-04-27T14:00:00.000Z",
-      "lastError": "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/opt/homebrew/lib/node_modules/openclaw/dist/usage-format-DLvGF1Ze.js' imported from /opt/homebrew/lib/node_modules/openclaw/dist/server-Cv5hzFG4.js"
+      "lastRunAt": null,
+      "lastStatus": "unknown",
+      "lastDurationMs": null,
+      "consecutiveErrors": 0,
+      "nextRunAt": null,
+      "lastError": null
     },
     {
       "id": "f3042599-edc9-44c7-95b1-24dff5fe4e91",
@@ -23,12 +23,12 @@
       "schedule": "0 7 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "openai-codex/gpt-5.4",
-      "lastRunAt": "2026-04-24T14:00:28.169Z",
-      "lastStatus": "error",
-      "lastDurationMs": 35480,
-      "consecutiveErrors": 2,
-      "nextRunAt": "2026-04-27T14:00:00.000Z",
-      "lastError": "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/opt/homebrew/lib/node_modules/openclaw/dist/usage-format-DLvGF1Ze.js' imported from /opt/homebrew/lib/node_modules/openclaw/dist/server-Cv5hzFG4.js"
+      "lastRunAt": null,
+      "lastStatus": "unknown",
+      "lastDurationMs": null,
+      "consecutiveErrors": 0,
+      "nextRunAt": null,
+      "lastError": null
     },
     {
       "id": "0ccd501e-72de-4746-94b8-dff9e1b7d2d0",
@@ -37,12 +37,12 @@
       "schedule": "0 6 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-26T13:00:00.015Z",
-      "lastStatus": "error",
-      "lastDurationMs": 89,
-      "consecutiveErrors": 4,
-      "nextRunAt": "2026-04-27T13:00:00.000Z",
-      "lastError": "Cannot find module '/opt/homebrew/lib/node_modules/openclaw/dist/heartbeat-runner.runtime-DRzY39eR.js' imported from /opt/homebrew/lib/node_modules/openclaw/dist/heartbeat-runner-DU4t-qy6.js"
+      "lastRunAt": null,
+      "lastStatus": "unknown",
+      "lastDurationMs": null,
+      "consecutiveErrors": 0,
+      "nextRunAt": null,
+      "lastError": null
     },
     {
       "id": "f8589b1b-37f4-45a1-bf03-6942f7fb641d",
@@ -51,12 +51,12 @@
       "schedule": "0 7,11,15,19,22 * * *",
       "tz": "America/Los_Angeles",
       "model": "default",
-      "lastRunAt": "2026-04-16T05:00:00.039Z",
-      "lastStatus": "error",
-      "lastDurationMs": 43550,
-      "consecutiveErrors": 4,
+      "lastRunAt": null,
+      "lastStatus": "unknown",
+      "lastDurationMs": null,
+      "consecutiveErrors": 0,
       "nextRunAt": null,
-      "lastError": "Error: Telegram recipient @heartbeat could not be resolved to a numeric chat ID (Call to 'getChat' failed! (400: Bad Request: chat not found))"
+      "lastError": null
     },
     {
       "id": "40b04233-32ab-46df-8d98-de606d035747",
@@ -65,12 +65,12 @@
       "schedule": "45 6 * * 1-5",
       "tz": "America/Los_Angeles",
       "model": "openai-codex/gpt-5.4",
-      "lastRunAt": "2026-04-24T13:45:00.013Z",
-      "lastStatus": "error",
-      "lastDurationMs": 14767,
-      "consecutiveErrors": 2,
-      "nextRunAt": "2026-04-27T13:45:00.000Z",
-      "lastError": "Error [ERR_MODULE_NOT_FOUND]: Cannot find module '/opt/homebrew/lib/node_modules/openclaw/dist/usage-format-DLvGF1Ze.js' imported from /opt/homebrew/lib/node_modules/openclaw/dist/server-Cv5hzFG4.js"
+      "lastRunAt": null,
+      "lastStatus": "unknown",
+      "lastDurationMs": null,
+      "consecutiveErrors": 0,
+      "nextRunAt": null,
+      "lastError": null
     },
     {
       "id": "70695707-49dd-4313-8eda-3c2b02aadf6d",
@@ -79,11 +79,11 @@
       "schedule": "0 9 * * 1",
       "tz": "America/Los_Angeles",
       "model": "anthropic/claude-haiku-4-5-20251001",
-      "lastRunAt": "2026-04-20T16:00:00.035Z",
-      "lastStatus": "ok",
-      "lastDurationMs": 19584,
+      "lastRunAt": null,
+      "lastStatus": "unknown",
+      "lastDurationMs": null,
       "consecutiveErrors": 0,
-      "nextRunAt": "2026-04-27T16:00:00.000Z",
+      "nextRunAt": null,
       "lastError": null
     }
   ]
