@@ -1,5 +1,5 @@
 {
-  "lastUpdated": "2026-04-27T21:00:05.661Z",
+  "lastUpdated": "2026-04-27T23:00:07.131Z",
   "source": "update-dashboard-script",
   "snapshotPath": "/Users/alfonsogarzabot/.openclaw/workspace/market-snapshot.json",
   "marketMode": "Neutral",
@@ -8,11 +8,11 @@
   "spyTrend": "$715.17 (+0.95% today)",
   "qqqTrend": "$664.23 (+1.97% today)",
   "treasury10y": "4.34% (+0.60% today)",
-  "dxy": "98.48 (-0.06% today)",
-  "btcStructure": "$76,987 (-1.62% 24h | +0.72% 7d)",
-  "ethPrice": "$2,292 (-3.11% 24h | -1.85% 7d)",
-  "solPrice": "$84.27 (-2.86% 24h | -2.11% 7d)",
-  "totalCryptoMarketCap": "$2.65T",
+  "dxy": "98.50 (+0.00% today)",
+  "btcStructure": "$77,068 (-1.65% 24h | +1.45% 7d)",
+  "ethPrice": "$2,295 (-2.81% 24h | -1.19% 7d)",
+  "solPrice": "$84.54 (-2.58% 24h | -1.48% 7d)",
+  "totalCryptoMarketCap": "$2.66T",
   "topOpportunity": "Check Vega's 7am Telegram brief for trade ideas",
   "topRisk": "Fear & Greed at 47/100 — monitor for sentiment shifts"
 }
