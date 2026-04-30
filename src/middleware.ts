@@ -17,11 +17,12 @@ function isPublicPath(pathname: string) {
 export function middleware(request: NextRequest) {
   const pin = process.env.MISSION_CONTROL_PIN;
 
-  // No PIN configured = don't lock local/dev environments by accident.
-  // Set MISSION_CONTROL_PIN in Vercel to protect the live app.
-  if (!pin) return NextResponse.next();
-
   const { pathname } = request.nextUrl;
+  const isProduction = process.env.NODE_ENV === "production" || process.env.VERCEL === "1";
+
+  // Local/dev stays unlocked unless a PIN is configured.
+  // Production locks by default. If the Vercel env var is missing, visitors see login but cannot enter.
+  if (!pin && !isProduction) return NextResponse.next();
   if (isPublicPath(pathname)) return NextResponse.next();
 
   const authCookie = request.cookies.get(AUTH_COOKIE)?.value;
