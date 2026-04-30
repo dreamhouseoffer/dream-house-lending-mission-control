@@ -25,7 +25,7 @@ export default function RootLayout({
       <body className="antialiased bg-[#0A0A0A] text-white/90">
         <NavProvider>
           <Sidebar />
-          <div className="md:ml-[180px] min-h-screen flex flex-col">
+          <div className="md:ml-[260px] min-h-screen flex flex-col">
             <Topbar />
             <main className="flex-1">{children}</main>
           </div>
