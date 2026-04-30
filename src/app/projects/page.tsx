@@ -1,14 +1,11 @@
 import { Badge } from "@/components/ui/badge";
 import {
-  ArrowRight,
   Banknote,
   CalendarClock,
-  CircleDollarSign,
   HeartPulse,
   LockKeyhole,
   ShieldAlert,
   Target,
-  Users,
 } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -18,172 +15,130 @@ function getMorningBriefStamp() {
   const date = new Intl.DateTimeFormat("en-US", {
     month: "short",
     day: "numeric",
-    year: "numeric",
     timeZone: "America/Los_Angeles",
   }).format(now);
   const time = new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     minute: "2-digit",
     timeZone: "America/Los_Angeles",
-    timeZoneName: "short",
   }).format(now);
 
   return `${date} · ${time}`;
 }
 
-const todayMoves = [
+const focusCards = [
   {
-    label: "Revenue",
-    title: "Protect closings + follow-up",
-    owner: "Fonz / Claudia / Nathaly",
-    next: "Review stuck files, hot leads, and one lead source before touching anything else.",
+    title: "Make Money",
+    subtitle: "Loans, leads, closings",
+    line: "Focus on the one thing most likely to create revenue today.",
     icon: Target,
-    accent: "emerald",
+    className: "border-emerald-400/18 bg-emerald-500/[0.06] text-emerald-300",
   },
   {
-    label: "CFO",
-    title: "Know the money picture",
-    owner: "Fonz",
-    next: "Cash, reserves, bills, debt, tax set-aside, BTC DCA. No guessing.",
-    icon: CircleDollarSign,
-    accent: "amber",
+    title: "Protect Money",
+    subtitle: "Cash, bills, taxes, BTC",
+    line: "Know if money is safe, tight, or ready to deploy.",
+    icon: Banknote,
+    className: "border-amber-400/18 bg-amber-500/[0.06] text-amber-300",
   },
   {
-    label: "Health / Family",
-    title: "Do not outrun recovery",
-    owner: "Fonz",
-    next: "Hydration, food, WHOOP recovery, family anchors. Output is capped by energy.",
+    title: "Protect Energy",
+    subtitle: "Health, family, recovery",
+    line: "Do not burn the operator running the machine.",
     icon: HeartPulse,
-    accent: "rose",
+    className: "border-rose-400/18 bg-rose-500/[0.06] text-rose-300",
   },
 ];
 
-const moneySignals = [
-  { label: "Income target", value: "$69K/mo" },
-  { label: "Current avg", value: "~$40K/mo" },
-  { label: "Focus", value: "1 lead source" },
-  { label: "Rule", value: "No new plays" },
+const simpleSignals = [
+  ["Revenue target", "$69K/mo"],
+  ["Current avg", "~$40K/mo"],
+  ["Current rule", "One play at a time"],
 ];
 
-const parked = [
-  "Generic task backlog",
-  "Raw docs/tools/memory pages",
-  "Extra content experiments",
-  "New investing side quests",
+const hiddenNoise = [
+  "Owner grids",
+  "Next-move lists",
+  "Long project cards",
+  "Raw docs/tools",
 ];
-
-const accentClasses = {
-  emerald: "border-emerald-400/18 bg-emerald-500/[0.055] text-emerald-300",
-  amber: "border-amber-400/18 bg-amber-500/[0.055] text-amber-300",
-  rose: "border-rose-400/18 bg-rose-500/[0.055] text-rose-300",
-};
 
 export default function ProjectsPage() {
   const generatedAt = getMorningBriefStamp();
 
   return (
     <main className="min-h-screen bg-[#070707] px-4 py-5 text-white sm:px-6 lg:px-8">
-      <div className="mx-auto max-w-6xl space-y-5">
-        <section className="rounded-[2rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.018))] p-5 shadow-2xl shadow-black/35 sm:p-7">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="max-w-3xl">
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <Badge className="border-emerald-400/20 bg-emerald-500/10 text-emerald-300">
-                  CEO OS · Simple Mode
-                </Badge>
-                <Badge className="border-white/10 bg-white/10 text-white/55">
-                  Updated {generatedAt}
-                </Badge>
-              </div>
-              <h1 className="text-3xl font-black tracking-[-0.04em] text-white sm:text-5xl lg:text-6xl">
-                Today’s Mission Board
-              </h1>
-              <p className="mt-3 max-w-2xl text-sm leading-6 text-white/52 sm:text-base">
-                Three decisions only: what closes loans, what protects cash, and what protects energy. Everything else is parked.
-              </p>
-            </div>
-
-            <div className="rounded-3xl border border-red-400/15 bg-red-500/[0.045] p-4 lg:w-[310px]">
-              <div className="mb-2 flex items-center gap-2 text-red-300">
-                <LockKeyhole className="size-4" />
-                <p className="text-xs font-black uppercase tracking-[0.2em]">Rule</p>
-              </div>
-              <p className="text-sm leading-6 text-white/68">
-                No new plays until pipeline + CFO data are clean and one lead source is locked.
-              </p>
-            </div>
+      <div className="mx-auto max-w-5xl space-y-5">
+        <section className="rounded-[2rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.14),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.07),rgba(255,255,255,0.018))] p-5 shadow-2xl shadow-black/35 sm:p-8">
+          <div className="mb-4 flex flex-wrap items-center gap-2">
+            <Badge className="border-emerald-400/20 bg-emerald-500/10 text-emerald-300">
+              CEO OS
+            </Badge>
+            <Badge className="border-white/10 bg-white/10 text-white/55">
+              {generatedAt}
+            </Badge>
           </div>
+          <h1 className="text-4xl font-black tracking-[-0.05em] text-white sm:text-6xl">
+            Simple command center.
+          </h1>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-white/55">
+            No owner charts. No project maze. Just the three areas that tell you if today is on track.
+          </p>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-3">
-          {todayMoves.map((move, index) => {
-            const Icon = move.icon;
+        <section className="grid gap-4 md:grid-cols-3">
+          {focusCards.map((card) => {
+            const Icon = card.icon;
             return (
-              <article
-                key={move.label}
-                className={`rounded-3xl border p-5 ${accentClasses[move.accent as keyof typeof accentClasses]}`}
-              >
-                <div className="mb-5 flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.22em] opacity-70">
-                      Priority 0{index + 1} · {move.label}
-                    </p>
-                    <h2 className="mt-2 text-xl font-black text-white">{move.title}</h2>
-                  </div>
-                  <div className="flex size-11 shrink-0 items-center justify-center rounded-2xl border border-current/20 bg-black/25">
-                    <Icon className="size-5" />
-                  </div>
+              <article key={card.title} className={`rounded-3xl border p-5 ${card.className}`}>
+                <div className="mb-5 flex size-12 items-center justify-center rounded-2xl border border-current/20 bg-black/25">
+                  <Icon className="size-6" />
                 </div>
-
-                <div className="space-y-3 text-sm leading-6">
-                  <div className="rounded-2xl border border-white/[0.07] bg-black/20 p-3">
-                    <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Owner</p>
-                    <p className="text-white/75">{move.owner}</p>
-                  </div>
-                  <div className="rounded-2xl border border-white/[0.07] bg-black/20 p-3">
-                    <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.18em] text-white/30">Next move</p>
-                    <p className="text-white/75">{move.next}</p>
-                  </div>
-                </div>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] opacity-65">
+                  {card.subtitle}
+                </p>
+                <h2 className="mt-3 text-2xl font-black text-white">{card.title}</h2>
+                <p className="mt-3 text-sm leading-6 text-white/62">{card.line}</p>
               </article>
             );
           })}
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-3xl border border-white/[0.08] bg-white/[0.025] p-5">
-            <div className="mb-4 flex items-center gap-2 text-white/72">
-              <ArrowRight className="size-5 text-emerald-300" />
-              <h2 className="text-sm font-black uppercase tracking-[0.18em]">Operating Flow</h2>
+        <section className="rounded-3xl border border-white/[0.08] bg-white/[0.025] p-5 sm:p-6">
+          <div className="mb-4 flex items-center gap-2 text-white/72">
+            <CalendarClock className="size-5 text-purple-300" />
+            <h2 className="text-sm font-black uppercase tracking-[0.18em]">Today&apos;s Question</h2>
+          </div>
+          <p className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+            What needs my attention right now?
+          </p>
+          <p className="mt-3 text-sm leading-6 text-white/45">
+            If the answer is not revenue, cash, health, or family — it waits.
+          </p>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-[1fr_0.9fr]">
+          <div className="rounded-3xl border border-amber-400/15 bg-amber-500/[0.04] p-5">
+            <div className="mb-4 flex items-center gap-2 text-amber-300">
+              <LockKeyhole className="size-5" />
+              <h2 className="text-sm font-black uppercase tracking-[0.18em]">Current Rule</h2>
             </div>
-            <div className="grid gap-3 sm:grid-cols-4">
-              {moneySignals.map((signal) => (
-                <div key={signal.label} className="rounded-2xl border border-white/[0.07] bg-black/25 p-4">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/28">{signal.label}</p>
-                  <p className="mt-2 text-xl font-black text-white/88">{signal.value}</p>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 rounded-2xl border border-emerald-400/15 bg-emerald-500/[0.045] p-4">
-              <div className="mb-2 flex items-center gap-2 text-emerald-300">
-                <Banknote className="size-4" />
-                <p className="text-xs font-black uppercase tracking-[0.18em]">Data needed next</p>
-              </div>
-              <p className="text-sm leading-6 text-white/62">
-                Vercel PIN first. Then Airtable/Arive pipeline, cash snapshot, monthly expenses, tax reserve, and WHOOP trend feed.
-              </p>
-            </div>
+            <p className="text-xl font-black leading-8 text-white">
+              Keep the board quiet until the data is real.
+            </p>
+            <p className="mt-3 text-sm leading-6 text-white/52">
+              First: PIN. Then pipeline. Then CFO data. Then health trends. Do not add more modules just because we can.
+            </p>
           </div>
 
-          <aside className="rounded-3xl border border-white/[0.08] bg-white/[0.025] p-5">
-            <div className="mb-4 flex items-center gap-2 text-white/72">
-              <ShieldAlert className="size-5 text-red-300" />
-              <h2 className="text-sm font-black uppercase tracking-[0.18em]">Parked on Purpose</h2>
+          <aside className="rounded-3xl border border-red-400/15 bg-red-500/[0.035] p-5">
+            <div className="mb-4 flex items-center gap-2 text-red-300">
+              <ShieldAlert className="size-5" />
+              <h2 className="text-sm font-black uppercase tracking-[0.18em]">Hidden for Now</h2>
             </div>
-            <div className="space-y-2">
-              {parked.map((item) => (
-                <div key={item} className="flex items-center gap-3 rounded-2xl border border-white/[0.06] bg-black/25 p-3 text-sm text-white/58">
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-red-500/10 text-xs font-black text-red-300">×</span>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+              {hiddenNoise.map((item) => (
+                <div key={item} className="rounded-2xl border border-white/[0.06] bg-black/25 px-4 py-3 text-sm text-white/58">
                   {item}
                 </div>
               ))}
@@ -191,17 +146,13 @@ export default function ProjectsPage() {
           </aside>
         </section>
 
-        <section className="rounded-3xl border border-purple-400/15 bg-purple-500/[0.04] p-5">
-          <div className="mb-3 flex items-center gap-2 text-purple-200">
-            <CalendarClock className="size-5" />
-            <h2 className="text-sm font-black uppercase tracking-[0.18em]">Morning Question</h2>
-          </div>
-          <p className="text-2xl font-black tracking-tight text-white sm:text-3xl">
-            “What one thing moves revenue or protects cash today?”
-          </p>
-          <p className="mt-3 flex items-center gap-2 text-sm text-white/45">
-            <Users className="size-4" /> If it does not answer that, delegate it, park it, or delete it.
-          </p>
+        <section className="grid gap-3 sm:grid-cols-3">
+          {simpleSignals.map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-white/[0.07] bg-black/25 p-4">
+              <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/28">{label}</p>
+              <p className="mt-2 text-xl font-black text-white/88">{value}</p>
+            </div>
+          ))}
         </section>
       </div>
     </main>
