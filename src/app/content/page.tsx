@@ -1,464 +1,196 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { getContent, saveContent } from "@/lib/store";
-import { ContentPost, ContentPlatform, ContentStatus } from "@/lib/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
-import { Plus, Copy, Check, ChevronDown, ChevronUp } from "lucide-react";
+  ArrowRight,
+  BadgeCheck,
+  Camera,
+  Clapperboard,
+  HeartPulse,
+  PlayCircle,
+  Sparkles,
+  Target,
+} from "lucide-react";
 
-const platformColors: Record<ContentPlatform, string> = {
-  Instagram: "bg-gradient-to-r from-pink-500 to-purple-500 text-white",
-  LinkedIn: "bg-blue-600 text-white",
-  Facebook: "bg-blue-800 text-white",
-  YouTube: "bg-red-600 text-white",
-};
+const videos = [
+  {
+    title: "The Buyer Freeze",
+    audience: "First-time buyers / renters",
+    emotion: "Relief after confusion",
+    hook: "If buying a house feels impossible right now, pause — you may be looking at the wrong number.",
+    script: [
+      "Most buyers start with the home price. That is backwards.",
+      "The real question is: what monthly payment actually fits your life without making you house poor?",
+      "Once we know that number, we can work backwards into price, loan type, seller credit, and strategy.",
+      "Do not self-decline because Zillow scared you. Get the real math first.",
+      "DM me the word PAYMENT and I will help you map the numbers before you fall in love with the wrong house.",
+    ],
+    visual: "Fonz on camera, calm/direct. Overlay: PRICE is noise → PAYMENT is strategy.",
+    cta: "DM PAYMENT",
+  },
+  {
+    title: "Realtor Deal Saver",
+    audience: "Realtor partners",
+    emotion: "Urgency + confidence",
+    hook: "Realtors: before your buyer walks away over payment, check this first.",
+    script: [
+      "A deal does not die just because the first payment estimate looks high.",
+      "There may be room through seller credits, temporary buydowns, lender credits, program fit, or restructuring the offer.",
+      "The worst move is letting the buyer emotionally quit before the financing strategy is reviewed.",
+      "Send me the scenario. I will tell you quickly if there is a path or if it is truly dead.",
+      "Your job is to keep the client calm. My job is to find the financing angle.",
+    ],
+    visual: "Split screen: Realtor panic → financing options checklist → calm buyer.",
+    cta: "Text me the scenario",
+  },
+  {
+    title: "Pre-Approval Is Not Pre-Qualified",
+    audience: "Serious buyers",
+    emotion: "Protection / trust",
+    hook: "A weak pre-approval can cost you the house — or worse, embarrass you in escrow.",
+    script: [
+      "A real pre-approval is not just a quick phone call and a pretty letter.",
+      "We need income, assets, credit, debts, and the details that underwriting actually cares about.",
+      "That work protects you. It protects your agent. And it makes your offer stronger when the right house shows up.",
+      "If you want to buy this year, do the boring math early. That is how you move with confidence later.",
+      "DM me READY and I will show you what a real pre-approval should include.",
+    ],
+    visual: "Document stack + underwriting checklist + buyer getting keys.",
+    cta: "DM READY",
+  },
+];
 
-const statusColors: Record<ContentStatus, string> = {
-  Pending: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  Approved: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  "Needs Edit": "bg-orange-500/20 text-orange-400 border-orange-500/30",
-};
-
-const platforms: ContentPlatform[] = ["Instagram", "LinkedIn", "Facebook", "YouTube"];
-const statusFilters: (ContentStatus | "All")[] = ["All", "Pending", "Approved", "Needs Edit"];
-const platformFilters: (ContentPlatform | "All")[] = ["All", ...platforms];
+const workflow = [
+  "Pick one audience: buyer, Realtor, past client, or investor.",
+  "Choose the emotional shift: confused → clear, scared → protected, stuck → action.",
+  "Record 35-45 seconds in Fonz voice. No fluff. One point only.",
+  "Use captions, B-roll, and one CTA. Post everywhere, then track replies.",
+];
 
 export default function ContentPage() {
-  const [posts, setPosts] = useState<ContentPost[]>([]);
-  const [statusFilter, setStatusFilter] = useState<ContentStatus | "All">("All");
-  const [platformFilter, setPlatformFilter] = useState<ContentPlatform | "All">("All");
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [dialogOpen, setDialogOpen] = useState(false);
-
-  // New post form state
-  const [newPlatform, setNewPlatform] = useState<ContentPlatform>("Instagram");
-  const [newCaption, setNewCaption] = useState("");
-  const [newDate, setNewDate] = useState("");
-  const [newNotes, setNewNotes] = useState("");
-
-  useEffect(() => {
-    setPosts(getContent());
-  }, []);
-
-  const persist = (updated: ContentPost[]) => {
-    setPosts(updated);
-    saveContent(updated);
-  };
-
-  const approve = (id: string) => {
-    persist(
-      posts.map((p) =>
-        p.id === id ? { ...p, status: "Approved" as const, approvedAt: new Date().toISOString() } : p
-      )
-    );
-  };
-
-  const requestEdit = (id: string) => {
-    persist(
-      posts.map((p) => (p.id === id ? { ...p, status: "Needs Edit" as const } : p))
-    );
-  };
-
-  const markPosted = (id: string) => {
-    persist(
-      posts.map((p) =>
-        p.id === id ? { ...p, postedAt: new Date().toISOString() } : p
-      )
-    );
-  };
-
-  const copyCaption = async (id: string, text: string) => {
-    await navigator.clipboard.writeText(text);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  const toggleExpand = (id: string) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const addPost = () => {
-    if (!newCaption.trim()) return;
-    const post: ContentPost = {
-      id: crypto.randomUUID(),
-      platform: newPlatform,
-      caption: newCaption,
-      suggestedDate: newDate || new Date().toISOString().split("T")[0],
-      agent: "Fonz",
-      status: "Pending",
-      notes: newNotes || undefined,
-    };
-    persist([post, ...posts]);
-    setNewPlatform("Instagram");
-    setNewCaption("");
-    setNewDate("");
-    setNewNotes("");
-    setDialogOpen(false);
-  };
-
-  const filtered = posts.filter((p) => {
-    if (statusFilter !== "All" && p.status !== statusFilter) return false;
-    if (platformFilter !== "All" && p.platform !== platformFilter) return false;
-    return true;
-  });
-
-  const queuePosts = filtered.filter((p) => !p.postedAt);
-  const approvedPosted = filtered.filter((p) => p.status === "Approved" && !p.postedAt);
-  const archivedPosts = posts.filter((p) => p.postedAt);
-
   return (
-    <div className="min-h-screen bg-[#09090b] text-white">
-      {/* Header */}
-      <div className="border-b border-white/[0.06]">
-        <div className="mx-auto max-w-5xl px-6 py-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-semibold tracking-tight">Content Queue</h1>
-              <p className="mt-1 text-sm text-white/40">
-                Review and approve posts from Nova before publishing
+    <main className="min-h-screen bg-[#070707] px-4 py-6 text-white sm:px-6 lg:px-8">
+      <div className="mx-auto max-w-7xl space-y-6">
+        <section className="overflow-hidden rounded-[2rem] border border-white/[0.08] bg-[radial-gradient(circle_at_top_left,rgba(168,85,247,0.20),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.075),rgba(255,255,255,0.018))] p-6 shadow-2xl shadow-black/30 sm:p-8">
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-purple-400/20 bg-purple-500/10 px-3 py-1 text-xs font-bold uppercase tracking-[0.22em] text-purple-200">
+                <Clapperboard className="size-3.5" /> Video Studio / Emotion Engine
+              </div>
+              <h1 className="text-3xl font-black tracking-tight text-white sm:text-5xl">
+                Create mortgage videos that move people to action.
+              </h1>
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-white/52 sm:text-base">
+                This is not a content toy. It is a lead engine: hook emotion, teach one thing, ask for one reply, track whether it creates conversations.
               </p>
             </div>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <Button
-                size="sm"
-                className="gap-1.5 bg-white/10 hover:bg-white/15 text-white"
-                onClick={() => setDialogOpen(true)}
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Add Content
-              </Button>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add Content</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
+            <div className="grid min-w-[260px] grid-cols-3 gap-2 rounded-3xl border border-white/[0.08] bg-black/25 p-3">
+              {[
+                ["3", "Ready scripts"],
+                ["45s", "Max length"],
+                ["1", "CTA each"],
+              ].map(([value, label]) => (
+                <div key={label} className="rounded-2xl border border-white/[0.06] bg-white/[0.035] p-3 text-center">
+                  <p className="text-2xl font-black text-white">{value}</p>
+                  <p className="mt-1 text-[10px] uppercase tracking-wider text-white/32">{label}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <div className="rounded-3xl border border-emerald-400/15 bg-emerald-500/[0.045] p-5">
+            <div className="mb-4 flex items-center gap-2 text-emerald-300">
+              <HeartPulse className="size-5" />
+              <h2 className="text-sm font-black uppercase tracking-[0.18em]">Emotion Formula</h2>
+            </div>
+            <div className="space-y-3">
+              {[
+                ["Fear", "I do not know if I can buy."],
+                ["Clarity", "Here is the real number to look at."],
+                ["Confidence", "There is a path if we structure it right."],
+                ["Action", "DM one keyword so the conversation starts."],
+              ].map(([label, text]) => (
+                <div key={label} className="flex gap-3 rounded-2xl border border-white/[0.06] bg-black/20 p-3">
+                  <BadgeCheck className="mt-0.5 size-4 shrink-0 text-emerald-300" />
                   <div>
-                    <label className="text-xs font-medium text-white/50 mb-1.5 block">
-                      Platform
-                    </label>
-                    <Select value={newPlatform} onValueChange={(v) => setNewPlatform(v as ContentPlatform)}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select platform" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {platforms.map((p) => (
-                          <SelectItem key={p} value={p}>
-                            {p}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-white/50 mb-1.5 block">
-                      Caption
-                    </label>
-                    <Textarea
-                      placeholder="Write or paste the post caption..."
-                      value={newCaption}
-                      onChange={(e) => setNewCaption(e.target.value)}
-                      rows={5}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-white/50 mb-1.5 block">
-                      Suggested Date
-                    </label>
-                    <Input
-                      type="date"
-                      value={newDate}
-                      onChange={(e) => setNewDate(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-white/50 mb-1.5 block">
-                      Notes for Fonz
-                    </label>
-                    <Textarea
-                      placeholder="Any notes or context..."
-                      value={newNotes}
-                      onChange={(e) => setNewNotes(e.target.value)}
-                      rows={2}
-                    />
+                    <p className="text-sm font-bold text-white/82">{label}</p>
+                    <p className="text-xs leading-5 text-white/45">{text}</p>
                   </div>
                 </div>
-                <DialogFooter>
-                  <Button variant="ghost" size="sm" onClick={() => setDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button
-                    size="sm"
-                    className="bg-white/10 hover:bg-white/15 text-white"
-                    onClick={addPost}
-                  >
-                    Add to Queue
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {/* Filters */}
-          <div className="mt-6 flex flex-wrap items-center gap-4">
-            {/* Status filter */}
-            <div className="flex items-center gap-1">
-              {statusFilters.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStatusFilter(s)}
-                  className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                    statusFilter === s
-                      ? "bg-white/10 text-white"
-                      : "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-
-            <div className="h-4 w-px bg-white/[0.08]" />
-
-            {/* Platform filter */}
-            <div className="flex items-center gap-1">
-              {platformFilters.map((p) => (
-                <button
-                  key={p}
-                  onClick={() => setPlatformFilter(p)}
-                  className={`rounded-md px-3 py-1 text-xs font-medium transition-colors ${
-                    platformFilter === p
-                      ? "bg-white/10 text-white"
-                      : "text-white/40 hover:text-white/60 hover:bg-white/[0.04]"
-                  }`}
-                >
-                  {p}
-                </button>
               ))}
             </div>
           </div>
-        </div>
+
+          <div className="rounded-3xl border border-white/[0.08] bg-white/[0.025] p-5">
+            <div className="mb-4 flex items-center gap-2 text-white/70">
+              <Target className="size-5 text-amber-300" />
+              <h2 className="text-sm font-black uppercase tracking-[0.18em]">Production Rules</h2>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {workflow.map((item, index) => (
+                <div key={item} className="rounded-2xl border border-white/[0.06] bg-black/20 p-4">
+                  <p className="mb-2 text-xs font-black uppercase tracking-[0.18em] text-white/25">Step {index + 1}</p>
+                  <p className="text-sm leading-6 text-white/68">{item}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-4 lg:grid-cols-3">
+          {videos.map((video, index) => (
+            <article key={video.title} className="flex flex-col rounded-3xl border border-white/[0.08] bg-white/[0.025] p-5">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.22em] text-purple-300">Video {index + 1}</p>
+                  <h3 className="mt-2 text-xl font-black text-white">{video.title}</h3>
+                  <p className="mt-1 text-xs text-white/38">{video.audience}</p>
+                </div>
+                <div className="rounded-2xl border border-white/[0.08] bg-black/25 p-2 text-purple-200">
+                  <PlayCircle className="size-5" />
+                </div>
+              </div>
+
+              <div className="mb-4 rounded-2xl border border-amber-400/15 bg-amber-500/[0.055] p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-amber-300">Hook</p>
+                <p className="mt-1 text-sm leading-6 text-white/72">{video.hook}</p>
+              </div>
+
+              <div className="space-y-2">
+                {video.script.map((line) => (
+                  <div key={line} className="flex gap-2 text-sm leading-6 text-white/58">
+                    <ArrowRight className="mt-1 size-3.5 shrink-0 text-emerald-300" />
+                    <p>{line}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-5 space-y-3 border-t border-white/[0.06] pt-4">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/25">Emotion</p>
+                  <p className="mt-1 text-sm text-white/65">{video.emotion}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/25">Visual Direction</p>
+                  <p className="mt-1 text-sm leading-6 text-white/55">{video.visual}</p>
+                </div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-500/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-emerald-300">
+                  <Camera className="size-3.5" /> {video.cta}
+                </div>
+              </div>
+            </article>
+          ))}
+        </section>
+
+        <section className="rounded-3xl border border-purple-400/15 bg-purple-500/[0.04] p-5">
+          <div className="flex items-center gap-2 text-purple-200">
+            <Sparkles className="size-5" />
+            <h2 className="text-sm font-black uppercase tracking-[0.18em]">AI Tool Stack</h2>
+          </div>
+          <p className="mt-3 text-sm leading-6 text-white/55">
+            Best first workflow: record Fonz talking-head manually, then use CapCut/Pippit for captions and cuts. Use HeyGen/VisionStory only when you need avatar scale. Use Runway/Kling/Pika-style tools for B-roll, not for the core trust-building face-to-camera message.
+          </p>
+        </section>
       </div>
-
-      {/* Content Grid */}
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        {queuePosts.length === 0 ? (
-          <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-12 text-center">
-            <p className="text-white/30 text-sm">No posts match your filters</p>
-          </div>
-        ) : (
-          <div className="grid gap-4 md:grid-cols-2">
-            {queuePosts.map((post) => {
-              const expanded = expandedIds.has(post.id);
-              return (
-                <Card
-                  key={post.id}
-                  className="border-white/[0.06] bg-white/[0.03] p-5 flex flex-col gap-3"
-                >
-                  {/* Top row: platform + status */}
-                  <div className="flex items-center justify-between">
-                    <Badge
-                      className={`${platformColors[post.platform]} border-0 text-[11px] font-semibold`}
-                    >
-                      {post.platform}
-                    </Badge>
-                    <Badge
-                      className={`${statusColors[post.status]} text-[11px] font-medium border`}
-                    >
-                      {post.status}
-                    </Badge>
-                  </div>
-
-                  {/* Caption */}
-                  <div
-                    className="cursor-pointer"
-                    onClick={() => toggleExpand(post.id)}
-                  >
-                    <p
-                      className={`text-sm text-white/70 leading-relaxed whitespace-pre-wrap ${
-                        !expanded ? "line-clamp-3" : ""
-                      }`}
-                    >
-                      {post.caption}
-                    </p>
-                    {post.caption.split("\n").length > 3 && (
-                      <button className="mt-1 flex items-center gap-0.5 text-[11px] text-white/30 hover:text-white/50 transition-colors">
-                        {expanded ? (
-                          <>
-                            <ChevronUp className="h-3 w-3" /> Show less
-                          </>
-                        ) : (
-                          <>
-                            <ChevronDown className="h-3 w-3" /> Show more
-                          </>
-                        )}
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Notes */}
-                  {post.notes && (
-                    <p className="text-xs text-white/30 italic">Note: {post.notes}</p>
-                  )}
-
-                  {/* Meta row */}
-                  <div className="flex items-center gap-3 text-[11px] text-white/30">
-                    <span>
-                      {new Date(post.suggestedDate + "T12:00:00").toLocaleDateString("en-US", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </span>
-                    <span className="text-white/10">|</span>
-                    <span>{post.agent}</span>
-                  </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 mt-auto pt-1">
-                    {post.status !== "Approved" && (
-                      <Button
-                        size="sm"
-                        className="bg-emerald-600/20 text-emerald-400 hover:bg-emerald-600/30 border border-emerald-500/20 text-xs h-7"
-                        onClick={() => approve(post.id)}
-                      >
-                        Approve
-                      </Button>
-                    )}
-                    {post.status !== "Needs Edit" && (
-                      <Button
-                        size="sm"
-                        className="bg-orange-600/20 text-orange-400 hover:bg-orange-600/30 border border-orange-500/20 text-xs h-7"
-                        onClick={() => requestEdit(post.id)}
-                      >
-                        Request Edit
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="ml-auto text-white/30 hover:text-white/60 text-xs h-7 gap-1"
-                      onClick={() => copyCaption(post.id, post.caption)}
-                    >
-                      {copiedId === post.id ? (
-                        <>
-                          <Check className="h-3 w-3" /> Copied
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="h-3 w-3" /> Copy Caption
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                </Card>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Approved Posts Section */}
-        {approvedPosted.length > 0 && (
-          <div className="mt-12">
-            <h2 className="text-lg font-semibold tracking-tight text-white/80 mb-4">
-              Approved — Ready to Post
-            </h2>
-            <div className="grid gap-3">
-              {approvedPosted.map((post) => (
-                <div
-                  key={post.id}
-                  className="flex items-center gap-4 rounded-lg border border-white/[0.06] bg-white/[0.02] px-5 py-3"
-                >
-                  <Badge
-                    className={`${platformColors[post.platform]} border-0 text-[11px] font-semibold shrink-0`}
-                  >
-                    {post.platform}
-                  </Badge>
-                  <p className="text-sm text-white/60 line-clamp-1 flex-1">
-                    {post.caption}
-                  </p>
-                  <span className="text-[11px] text-white/30 shrink-0">
-                    Approved{" "}
-                    {post.approvedAt &&
-                      new Date(post.approvedAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                  </span>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-white/30 hover:text-white/60 text-xs h-7 shrink-0"
-                    onClick={() => markPosted(post.id)}
-                  >
-                    Mark as Posted
-                  </Button>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Archived Posts */}
-        {archivedPosts.length > 0 && (
-          <div className="mt-12">
-            <h2 className="text-lg font-semibold tracking-tight text-white/80 mb-4">
-              Archive
-            </h2>
-            <div className="grid gap-2">
-              {archivedPosts.map((post) => (
-                <div
-                  key={post.id}
-                  className="flex items-center gap-4 rounded-lg border border-white/[0.06] bg-white/[0.01] px-5 py-2.5 opacity-50"
-                >
-                  <Badge
-                    className={`${platformColors[post.platform]} border-0 text-[10px] font-semibold shrink-0`}
-                  >
-                    {post.platform}
-                  </Badge>
-                  <p className="text-xs text-white/40 line-clamp-1 flex-1">
-                    {post.caption}
-                  </p>
-                  <span className="text-[10px] text-white/20 shrink-0">
-                    Posted{" "}
-                    {post.postedAt &&
-                      new Date(post.postedAt).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                      })}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+    </main>
   );
 }

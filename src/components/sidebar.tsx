@@ -12,6 +12,7 @@ import {
   CheckSquare,
   ChevronRight,
   CircleDollarSign,
+  Clapperboard,
   Command,
   DollarSign,
   Flame,
@@ -111,6 +112,15 @@ const sections: NavSection[] = [
         intent: "revenue",
         useful: "Useful",
         note: "Lead gen only if measured",
+      },
+      {
+        href: "/content",
+        label: "Video Studio",
+        short: "Video",
+        icon: Clapperboard,
+        intent: "revenue",
+        useful: "Useful",
+        note: "Emotion-led mortgage videos",
       },
     ],
   },
@@ -267,8 +277,8 @@ function UtilityVerdict() {
         <p className="text-[10px] font-black uppercase tracking-[0.2em]">Noise Filter</p>
       </div>
       <p className="text-[11px] leading-5 text-white/45">
-        Useful: CEO OS, Pipeline, CFO. Conditional: Vega, Campaigns, Calendar, Team.
-        Not useful as daily nav: raw docs, tools, memory, generic content.
+        Useful: CEO OS, Pipeline, CFO. Conditional: Vega, Campaigns, Video Studio, Calendar, Team.
+        Not useful as daily nav: raw docs, tools, memory.
       </p>
     </div>
   );
