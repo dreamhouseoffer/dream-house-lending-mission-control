@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 import "./globals.css";
 import { cn } from "@/lib/utils";
-import { Sidebar } from "@/components/sidebar";
-import { Topbar } from "@/components/topbar";
-import { NavProvider } from "@/components/nav-context";
+import { AppShell } from "@/components/app-shell";
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -23,13 +21,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={cn("dark font-sans", geistSans.variable)}>
       <body className="antialiased bg-[#0A0A0A] text-white/90">
-        <NavProvider>
-          <Sidebar />
-          <div className="md:ml-[260px] min-h-screen flex flex-col">
-            <Topbar />
-            <main className="flex-1">{children}</main>
-          </div>
-        </NavProvider>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
