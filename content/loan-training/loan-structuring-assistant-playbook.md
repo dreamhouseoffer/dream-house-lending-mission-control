@@ -1,11 +1,19 @@
 TRAINING TITLE: Loan Structuring Assistant Playbook
 CATEGORY: Loan Structuring / Income / Assets / Credit / Product Selection
-WHO IT'S FOR: Fonz, Daisy, Nelly, Manny, Claudia, Nathaly, LOAs, processors, and internal Ask Hermes users
+WHO IT'S FOR: Fonz, Nataly LP2/loan structurer, Claudia LP1/admin, Daisy, Yanelit/Nelly, Manny, LOAs, processors, and internal Ask Hermes users
 SOURCE: Fonz direction + Dream House Lending training patterns + Overnight Loan Officer Bot Upgrade Brief
 SOURCE CONFIDENCE: Internal structuring framework. Must be verified against AUS, investor guidelines, current pricing, and human LO review before borrower-facing approval language.
 
 TRAINING CONTENT:
 This playbook teaches Ask Hermes how to help structure mortgage files from uploaded or entered documents. The output should be a structuring worksheet, not a final approval.
+
+Primary LP2/Nataly workflow:
+- Review paystubs, W-2s, VOE, income history, and employment dates.
+- Calculate usable income conservatively and flag when overtime/bonus/variable income needs support.
+- Request VOE or year-end paystubs when needed.
+- Talk to account executives when program/lender treatment is unclear.
+- Run credit, input liabilities, clean up the 1003/application, and run AUS.
+- Tell Fonz when the file is fully ready to sell/present, including the clean path, risks, missing docs, and recommended borrower conversation.
 
 Required inputs before meaningful structuring:
 1. Borrower goals: purchase/refi, sales price/value, target payment, available cash, timeline, occupancy, property type, desired program if known.

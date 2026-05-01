@@ -19,40 +19,35 @@ type ChannelGroup = {
 
 const channelGroups: ChannelGroup[] = [
   {
-    title: "command",
+    title: "core",
     channels: [
-      { href: "/projects", label: "projects", badge: "5" },
-      { href: "/", label: "live-room" },
-    ],
-  },
-  {
-    title: "revenue",
-    channels: [
+      { href: "/", label: "today", badge: "focus" },
       { href: "/pipeline", label: "pipeline", badge: "arive" },
-      { href: "/campaigns", label: "campaigns" },
-      { href: "/content", label: "video-studio" },
+      { href: "/ask", label: "ask-hermes", badge: "team" },
     ],
   },
   {
-    title: "money",
+    title: "team support",
     channels: [
-      { href: "/finance", label: "cfo" },
-      { href: "/vega", label: "markets" },
-    ],
-  },
-  {
-    title: "operators",
-    channels: [
-      { href: "/ask", label: "ask-hermes", badge: "beta" },
-      { href: "/team", label: "agents" },
-      { href: "/calendar", label: "calendar" },
+      { href: "/team", label: "team" },
+      { href: "/briefs", label: "briefs" },
+      { href: "/content", label: "training" },
     ],
   },
   {
     title: "archive",
     channels: [
-      { href: "/briefs", label: "briefs" },
+      { href: "/projects", label: "projects" },
       { href: "/tasks", label: "backlog" },
+      { href: "/docs", label: "docs" },
+      { href: "/memory", label: "memory" },
+      { href: "/tools", label: "tools" },
+      { href: "/calendar", label: "calendar" },
+      { href: "/campaigns", label: "campaigns" },
+      { href: "/finance", label: "cfo" },
+      { href: "/portfolio", label: "portfolio" },
+      { href: "/vega", label: "markets" },
+      { href: "/office", label: "office" },
     ],
   },
 ];
@@ -142,7 +137,7 @@ function SidebarFooter() {
       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/25">current channel</p>
       <p className="mt-2 font-mono text-sm font-bold text-white/75">#{current?.label ?? "dashboard"}</p>
       <p className="mt-1 text-[11px] leading-5 text-white/32">
-        Projects = active work. Pipeline = Arive loan data. Live Room = pulse view.
+        Core = Today, Pipeline, Ask Hermes. Archive = parked tools we can revisit later.
       </p>
     </div>
   );
