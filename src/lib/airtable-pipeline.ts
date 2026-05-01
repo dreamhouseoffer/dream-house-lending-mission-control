@@ -270,9 +270,8 @@ function normalize(record: AirtableRecord): PipelineLoan {
 }
 
 function normalizeAriveCsvRow(row: Record<string, string>, index: number): PipelineLoan {
-  const fundedDate = asString(row["Loan Funded"]);
   const stage = asString(row["Stage Name"]) || "Unstaged";
-  const closed = Boolean(fundedDate) || stageIncludes(stage, ["funded", "closed"]);
+  const closed = false;
   const cancelled = stageIncludes(stage, ["adverse", "denied", "withdrawn", "cancel", "lost"]);
 
   return {
