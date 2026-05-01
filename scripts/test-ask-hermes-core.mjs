@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
   buildLoanTrainingContext,
   createHermesSystemPrompt,
@@ -25,6 +26,9 @@ assert.match(training, /Use when the team asks about FHA gift fund conditions/);
 const prompt = createHermesSystemPrompt({ trainingContext: training });
 assert.match(prompt, /Dream House Lending/);
 assert.match(prompt, /loan officer assistant/i);
+assert.match(prompt, /Daisy/);
+assert.match(prompt, /how would Fonz handle this/i);
+assert.match(prompt, /structuring worksheets/i);
 assert.match(prompt, /Do not invent guidelines/i);
 assert.match(prompt, /FHA Gift Funds/);
 assert.match(prompt, /overnight loan officer playbook/i);
@@ -72,5 +76,14 @@ const transcriptTraining = buildLoanTrainingContext([
 ]);
 const transcriptAnswer = buildSourceAwareAnswer('what did the transcript say about animal?', transcriptTraining);
 assert.match(transcriptAnswer.answer, /He's an animal/i);
+
+const masteryContext = buildLoanTrainingContext([
+  parseTrainingPaste(readFileSync('content/loan-training/loan-officer-mastery-playbook.md', 'utf8')),
+  parseTrainingPaste(readFileSync('content/loan-training/loan-structuring-assistant-playbook.md', 'utf8')),
+  parseTrainingPaste(readFileSync('content/loan-training/compliance-guardrails-for-ask-hermes-lo.md', 'utf8')),
+]);
+const masteryAnswer = buildSourceAwareAnswer('paystubs W-2s bank statements soft pull structuring worksheet', masteryContext);
+assert.match(masteryAnswer.answer, /Loan Structuring Assistant Playbook|Loan Officer Mastery Playbook/i);
+assert.match(masteryAnswer.answer, /structuring worksheet|paystubs|soft-pull/i);
 
 console.log('ask-hermes-core tests passed');
