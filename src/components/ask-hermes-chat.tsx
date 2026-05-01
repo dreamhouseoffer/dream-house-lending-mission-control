@@ -47,7 +47,7 @@ export function AskHermesChat({ embedded = false }: { embedded?: boolean }) {
     {
       role: "assistant",
       content:
-        "I’m Hermes for Dream House Lending. Ask about pipeline, loan process, conditions, scripts, or paste a training and I’ll turn it into usable team knowledge.",
+        "I’m Ask-Hermi for Dream House Lending. Ask about pipeline, loan process, conditions, scripts, or paste a training for temporary browser use. For permanent team knowledge, send the transcript to Fonz/Hermes to ingest into the server training database.",
     },
   ]);
   const [input, setInput] = useState("");
@@ -145,7 +145,7 @@ export function AskHermesChat({ embedded = false }: { embedded?: boolean }) {
 
   function copyEmbed() {
     const origin = typeof window !== "undefined" ? window.location.origin : "https://dream-house-lending-mission-control.vercel.app";
-    const snippet = `<iframe src="${origin}/embed/hermes" style="width:100%;height:720px;border:0;border-radius:18px;background:#090909;" title="Ask Hermes"></iframe>`;
+    const snippet = `<iframe src="${origin}/embed/hermes" style="width:100%;height:720px;border:0;border-radius:18px;background:#090909;" title="Ask-Hermi"></iframe>`;
     navigator.clipboard?.writeText(snippet);
   }
 
@@ -160,7 +160,7 @@ export function AskHermesChat({ embedded = false }: { embedded?: boolean }) {
                   <Bot size={20} />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/60">Ask Hermes</p>
+                  <p className="text-[10px] font-black uppercase tracking-[0.24em] text-emerald-200/60">Ask-Hermi</p>
                   <h1 className="truncate text-xl font-black text-white">Loan team chatbot</h1>
                 </div>
               </div>
@@ -234,10 +234,13 @@ export function AskHermesChat({ embedded = false }: { embedded?: boolean }) {
           <div className="rounded-3xl border border-white/[0.08] bg-white/[0.035] p-4">
             <div className="mb-3 flex items-center justify-between gap-3">
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/30">training inbox</p>
+                <p className="text-[10px] font-black uppercase tracking-[0.22em] text-white/30">temporary training inbox</p>
                 <h2 className="mt-1 font-black text-white">Paste loan training</h2>
+                <p className="mt-1 text-xs leading-5 text-amber-200/70">
+                  Browser-only storage. Good for testing on this device. For permanent team knowledge, send the transcript to Hermes so it gets added to the server training database.
+                </p>
               </div>
-              <span className="rounded-full border border-white/[0.08] px-2.5 py-1 text-xs font-bold text-white/38">{trainings.length} saved</span>
+              <span className="rounded-full border border-white/[0.08] px-2.5 py-1 text-xs font-bold text-white/38">{trainings.length} browser-saved</span>
             </div>
 
             <div className="space-y-2">
@@ -275,7 +278,7 @@ export function AskHermesChat({ embedded = false }: { embedded?: boolean }) {
 
             <div className="mt-3 flex gap-2">
               <button onClick={addTraining} className="flex-1 rounded-xl bg-white px-3 py-2 text-sm font-black text-black hover:bg-emerald-200">
-                Save training
+                Save to this browser
               </button>
               <button onClick={parseCurrentTrainingPaste} className="rounded-xl border border-emerald-400/20 px-3 py-2 text-emerald-200 hover:bg-emerald-500/10" title="Parse structured paste">
                 <Wand2 size={16} />

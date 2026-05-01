@@ -23,7 +23,7 @@ const channelGroups: ChannelGroup[] = [
     channels: [
       { href: "/", label: "today", badge: "focus" },
       { href: "/pipeline", label: "pipeline", badge: "arive" },
-      { href: "/ask", label: "ask-hermes", badge: "team" },
+      { href: "/ask", label: "ask-hermi", badge: "team" },
     ],
   },
   {
@@ -137,7 +137,7 @@ function SidebarFooter() {
       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/25">current channel</p>
       <p className="mt-2 font-mono text-sm font-bold text-white/75">#{current?.label ?? "dashboard"}</p>
       <p className="mt-1 text-[11px] leading-5 text-white/32">
-        Core = Today, Pipeline, Ask Hermes. Archive = parked tools we can revisit later.
+        Core = Today, Pipeline, Ask-Hermi. Archive = parked tools we can revisit later.
       </p>
     </div>
   );
