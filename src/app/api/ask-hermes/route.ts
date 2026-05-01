@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import { existsSync, readdirSync, readFileSync } from "fs";
+import { join } from "path";
 import {
   buildLoanTrainingContext,
   createFallbackAnswer,
   createHermesSystemPrompt,
+  parseTrainingPaste,
 } from "@/lib/ask-hermes-core.mjs";
 import { getPipelineData } from "@/lib/airtable-pipeline";
 
@@ -30,6 +33,20 @@ function cleanText(value: unknown, max = 12000) {
     .slice(0, max);
 }
 
+function loadServerTrainings(): TrainingInput[] {
+  const dir = join(process.cwd(), "content", "loan-training");
+  if (!existsSync(dir)) return [];
+
+  return readdirSync(dir)
+    .filter((name) => name.endsWith(".md") || name.endsWith(".txt"))
+    .sort()
+    .slice(0, 50)
+    .map((name) => {
+      const raw = readFileSync(join(dir, name), "utf-8");
+      return parseTrainingPaste(raw) as TrainingInput;
+    });
+}
+
 async function getSafePipelineContext() {
   try {
     const data = await getPipelineData();
@@ -52,7 +69,8 @@ export async function POST(request: Request) {
   try {
     const body = await request.json();
     const question = cleanText(body.question, 4000);
-    const trainings = Array.isArray(body.trainings) ? (body.trainings as TrainingInput[]).slice(0, 20) : [];
+    const userTrainings = Array.isArray(body.trainings) ? (body.trainings as TrainingInput[]).slice(0, 20) : [];
+    const trainings = [...loadServerTrainings(), ...userTrainings];
     const history = Array.isArray(body.history) ? (body.history as ChatMessage[]).slice(-8) : [];
 
     if (!question) {
