@@ -8,8 +8,9 @@ import { NavProvider } from "@/components/nav-context";
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isLogin = pathname === "/login";
+  const isEmbed = pathname.startsWith("/embed");
 
-  if (isLogin) {
+  if (isLogin || isEmbed) {
     return <>{children}</>;
   }
 

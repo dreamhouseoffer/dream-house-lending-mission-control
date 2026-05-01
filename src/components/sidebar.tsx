@@ -43,6 +43,7 @@ const channelGroups: ChannelGroup[] = [
   {
     title: "operators",
     channels: [
+      { href: "/ask", label: "ask-hermes", badge: "beta" },
       { href: "/team", label: "agents" },
       { href: "/calendar", label: "calendar" },
     ],
