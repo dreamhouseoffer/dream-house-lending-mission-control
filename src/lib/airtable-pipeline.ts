@@ -158,11 +158,22 @@ function isThisMonth(value: string) {
   return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
 }
 
+function stageIncludes(stage: string, terms: string[]) {
+  const normalized = stage.toLowerCase().replace(/[_-]/g, " ");
+  return terms.some((term) => normalized.includes(term));
+}
+
 function normalize(record: AirtableRecord): PipelineLoan {
   const f = record.fields;
+  const stage = asString(f.stage_name) || asString(f.stage_name_raw) || asString(f.Stage) || "Unstaged";
   const fundedDate = asString(f["Funded Date"]);
-  const closed = asBool(f.closed_flag) || Boolean(fundedDate);
-  const cancelled = asBool(f.cancelled_flag);
+  const closed =
+    asBool(f.closed_flag) ||
+    Boolean(fundedDate) ||
+    stageIncludes(stage, ["funded", "closed", "commission paid"]);
+  const cancelled =
+    asBool(f.cancelled_flag) ||
+    stageIncludes(stage, ["adverse", "denied", "withdrawn", "cancel", "lost"]);
   const hasExplicitActiveFlag = f.active_flag !== undefined;
   const active = hasExplicitActiveFlag ? asBool(f.active_flag) && !closed && !cancelled : !closed && !cancelled;
 
@@ -170,7 +181,7 @@ function normalize(record: AirtableRecord): PipelineLoan {
     id: record.id,
     borrower: asString(f.borrower_full_name) || asString(f["Borrower Name"]) || "Unknown borrower",
     loanAmount: asNumber(f.loan_amount ?? f["Loan Amount"]),
-    stage: asString(f.stage_name) || asString(f.stage_name_raw) || asString(f.Stage) || "Unstaged",
+    stage,
     loanPurpose: asString(f.loan_purpose ?? f["Loan Purpose"]),
     loanType: asString(f.mortgage_type ?? f["Loan Type"]),
     interestRate: f.interest_rate === undefined && f["Interest Rate"] === undefined ? null : asNumber(f.interest_rate ?? f["Interest Rate"]),
@@ -317,7 +328,7 @@ export async function getPipelineData(): Promise<PipelineData> {
   return {
     configured: true,
     connected: true,
-    source: "Airtable · ARIVE Company Pipeline · Loans_Current",
+    source: tableId === PIPELINE_TABLE_ID ? "Airtable · ARIVE Company Pipeline · Pipeline" : "Airtable · ARIVE Company Pipeline · Loans_Current",
     baseId,
     tableId,
     loans,
