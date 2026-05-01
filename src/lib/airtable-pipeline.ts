@@ -1,5 +1,8 @@
 export const dynamic = "force-dynamic";
 
+import { existsSync, readFileSync } from "fs";
+import * as path from "path";
+
 export type PipelineLoan = {
   id: string;
   borrower: string;
@@ -65,6 +68,7 @@ const DEFAULT_BASE_ID = "app9j7s9BTPr8UglD";
 const LOANS_CURRENT_TABLE_ID = "tblIHak6HQmv6Vyhe";
 const PIPELINE_TABLE_ID = "tbli44Wi5FDLn4abX";
 const DEFAULT_TABLE_ID = LOANS_CURRENT_TABLE_ID;
+const ARIVE_CSV_PATH = path.join(process.cwd(), "data", "arive-active-pipeline.csv");
 
 const LOANS_CURRENT_FIELDS = [
   "borrower_full_name",
@@ -136,6 +140,68 @@ function asBool(value: unknown) {
   return value === true || asString(value).toLowerCase() === "true";
 }
 
+function decodeCsvFromEnv() {
+  const encoded = env("ARIVE_PIPELINE_CSV_BASE64");
+  if (!encoded) return "";
+  try {
+    return Buffer.from(encoded, "base64").toString("utf8");
+  } catch {
+    return "";
+  }
+}
+
+function getAriveCsvText() {
+  const fromEnv = decodeCsvFromEnv();
+  if (fromEnv.trim()) return fromEnv;
+  if (existsSync(ARIVE_CSV_PATH)) return readFileSync(ARIVE_CSV_PATH, "utf8");
+  return "";
+}
+
+function parseCsv(text: string) {
+  const rows: string[][] = [];
+  let row: string[] = [];
+  let cell = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+      continue;
+    }
+
+    if (char === "," && !inQuotes) {
+      row.push(cell);
+      cell = "";
+      continue;
+    }
+
+    if ((char === "\n" || char === "\r") && !inQuotes) {
+      if (char === "\r" && next === "\n") i += 1;
+      row.push(cell);
+      if (row.some((value) => value.trim())) rows.push(row);
+      row = [];
+      cell = "";
+      continue;
+    }
+
+    cell += char;
+  }
+
+  row.push(cell);
+  if (row.some((value) => value.trim())) rows.push(row);
+
+  const headers = rows.shift()?.map((header) => header.replace(/^\uFEFF/, "").trim()) ?? [];
+  return rows.map((values) => Object.fromEntries(headers.map((header, index) => [header, values[index]?.trim() ?? ""])));
+}
+
 function parseDate(value: string) {
   if (!value) return null;
   const parsed = new Date(value);
@@ -203,6 +269,38 @@ function normalize(record: AirtableRecord): PipelineLoan {
   };
 }
 
+function normalizeAriveCsvRow(row: Record<string, string>, index: number): PipelineLoan {
+  const fundedDate = asString(row["Loan Funded"]);
+  const stage = asString(row["Stage Name"]) || "Unstaged";
+  const closed = Boolean(fundedDate) || stageIncludes(stage, ["funded", "closed"]);
+  const cancelled = stageIncludes(stage, ["adverse", "denied", "withdrawn", "cancel", "lost"]);
+
+  return {
+    id: asString(row["ARIVE Loan Id"]) || `arive-csv-${index}`,
+    borrower: asString(row["Primary Borrower"]) || "Unknown borrower",
+    loanAmount: asNumber(row["Total Loan Amount"] || row["Base Loan Amount"]),
+    stage,
+    loanPurpose: asString(row["Loan Purpose"]),
+    loanType: asString(row["Lien Position"]),
+    interestRate: row["Interest Rate"] ? asNumber(row["Interest Rate"]) : null,
+    city: asString(row["Subject City"]),
+    state: asString(row["Subject State"]),
+    estimatedClosingDate: asString(row["Estimated Closing Date"]),
+    lockExpiration: asString(row["Lock Expiration"]),
+    loanOfficer: asString(row["Primary Loan Officer Name"]),
+    processor: asString(row["Primary Loan Processor Name"]),
+    lender: asString(row.Lender),
+    leadSource: "Arive export",
+    referralSource: asString(row["Referral Contact Name"]),
+    lastSyncedAt: asString(row["Loan Status Date"]) || new Date().toISOString(),
+    active: !closed && !cancelled,
+    closed,
+    cancelled,
+    priority: "",
+    notes: asString(row["Registration Status"]),
+  };
+}
+
 function emptyData(overrides: Partial<PipelineData> = {}): PipelineData {
   return {
     configured: false,
@@ -227,7 +325,64 @@ function emptyData(overrides: Partial<PipelineData> = {}): PipelineData {
   };
 }
 
+function buildPipelineData(loans: PipelineLoan[], source: string, baseId?: string, tableId?: string): PipelineData {
+  const sortedLoans = loans.sort((a, b) => {
+    const ad = parseDate(a.estimatedClosingDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    const bd = parseDate(b.estimatedClosingDate)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+    return ad - bd;
+  });
+  const activeLoans = sortedLoans.filter((loan) => loan.active);
+  const closedLoans = sortedLoans.filter((loan) => loan.closed);
+  const cancelledLoans = sortedLoans.filter((loan) => loan.cancelled);
+  const stageCounts = activeLoans.reduce<Record<string, number>>((acc, loan) => {
+    acc[loan.stage] = (acc[loan.stage] ?? 0) + 1;
+    return acc;
+  }, {});
+  const lastSyncedAt = sortedLoans
+    .map((loan) => parseDate(loan.lastSyncedAt)?.getTime() ?? 0)
+    .sort((a, b) => b - a)[0];
+
+  return {
+    configured: true,
+    connected: true,
+    source,
+    baseId,
+    tableId,
+    loans: sortedLoans,
+    stats: {
+      totalLoans: sortedLoans.length,
+      activeLoans: activeLoans.length,
+      closedLoans: closedLoans.length,
+      cancelledLoans: cancelledLoans.length,
+      totalVolume: sortedLoans.reduce((sum, loan) => sum + loan.loanAmount, 0),
+      activeVolume: activeLoans.reduce((sum, loan) => sum + loan.loanAmount, 0),
+      closingThisWeek: activeLoans.filter((loan) => {
+        const days = daysUntil(loan.estimatedClosingDate);
+        return days !== null && days >= 0 && days <= 7;
+      }).length,
+      closingThisMonth: activeLoans.filter((loan) => isThisMonth(loan.estimatedClosingDate)).length,
+      locksExpiringSoon: activeLoans.filter((loan) => {
+        const days = daysUntil(loan.lockExpiration);
+        return days !== null && days >= 0 && days <= 10;
+      }).length,
+      staleFiles: activeLoans.filter((loan) => {
+        const synced = parseDate(loan.lastSyncedAt);
+        if (!synced) return false;
+        return Date.now() - synced.getTime() > 1000 * 60 * 60 * 24 * 7;
+      }).length,
+      lastSyncedAt: lastSyncedAt ? new Date(lastSyncedAt).toISOString() : "",
+    },
+    stageCounts,
+  };
+}
+
 export async function getPipelineData(): Promise<PipelineData> {
+  const ariveCsvText = getAriveCsvText();
+  if (ariveCsvText.trim()) {
+    const loans = parseCsv(ariveCsvText).map(normalizeAriveCsvRow);
+    return buildPipelineData(loans, "Arive CSV export · Active Pipeline Comp");
+  }
+
   const token = env("AIRTABLE_API_KEY") || env("AIRTABLE_TOKEN");
   const baseId = env("AIRTABLE_BASE_ID") || DEFAULT_BASE_ID;
   const tableId = env("AIRTABLE_TABLE_ID") || DEFAULT_TABLE_ID;
