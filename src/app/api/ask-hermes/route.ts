@@ -38,7 +38,7 @@ function loadServerTrainings(): TrainingInput[] {
   if (!existsSync(dir)) return [];
 
   return readdirSync(dir)
-    .filter((name) => name.endsWith(".md") || name.endsWith(".txt"))
+    .filter((name) => name !== "README.md" && (name.endsWith(".md") || name.endsWith(".txt")))
     .sort()
     .slice(0, 50)
     .map((name) => {
