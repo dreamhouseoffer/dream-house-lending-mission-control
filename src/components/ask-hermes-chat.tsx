@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Bot, Copy, Loader2, Send, ShieldCheck, Sparkles, Trash2 } from "lucide-react";
+import { Bot, Copy, Loader2, Send, ShieldCheck, Sparkles, Trash2, Wand2 } from "lucide-react";
+import { parseTrainingPaste } from "@/lib/ask-hermes-core.mjs";
 
 type Message = {
   role: "user" | "assistant";
@@ -127,6 +128,19 @@ export function AskHermesChat({ embedded = false }: { embedded?: boolean }) {
   function clearTrainings() {
     setTrainings([]);
     saveTrainings([]);
+  }
+
+  function parseCurrentTrainingPaste() {
+    if (!trainingDraft.content.trim()) return;
+    const parsed = parseTrainingPaste(trainingDraft.content);
+    setTrainingDraft({
+      title: trainingDraft.title || parsed.title,
+      category: trainingDraft.category || parsed.category,
+      audience: trainingDraft.audience || parsed.audience,
+      content: parsed.content,
+      takeaways: trainingDraft.takeaways || parsed.takeaways.join("\n"),
+      useWhen: trainingDraft.useWhen || parsed.useWhen,
+    });
   }
 
   function copyEmbed() {
@@ -262,6 +276,9 @@ export function AskHermesChat({ embedded = false }: { embedded?: boolean }) {
             <div className="mt-3 flex gap-2">
               <button onClick={addTraining} className="flex-1 rounded-xl bg-white px-3 py-2 text-sm font-black text-black hover:bg-emerald-200">
                 Save training
+              </button>
+              <button onClick={parseCurrentTrainingPaste} className="rounded-xl border border-emerald-400/20 px-3 py-2 text-emerald-200 hover:bg-emerald-500/10" title="Parse structured paste">
+                <Wand2 size={16} />
               </button>
               <button onClick={clearTrainings} className="rounded-xl border border-white/[0.08] px-3 py-2 text-white/45 hover:text-white" title="Clear saved trainings">
                 <Trash2 size={16} />
