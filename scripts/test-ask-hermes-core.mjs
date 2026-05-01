@@ -47,4 +47,30 @@ assert.match(sourceAware.answer, /Speed to lead/i);
 assert.match(sourceAware.answer, /Follow-up/i);
 assert.match(sourceAware.answer, /Source confidence/i);
 
+const transcriptTraining = buildLoanTrainingContext([
+  {
+    title: 'Full Loom Transcript Example',
+    category: 'Transcript',
+    audience: 'Loan officer',
+    content: [
+      'Overview line.',
+      '[00:01] File setup intro.',
+      '[00:02] VOE cleanup details.',
+      '[00:03] AUS details.',
+      '[00:04] Income details.',
+      '[00:05] Conditions details.',
+      '[00:06] Closing cost details.',
+      '[00:07] Rate details.',
+      '[00:08] Reserves details.',
+      '[00:09] Manual underwriting details.',
+      '[00:10] This is what it is.',
+      "[00:11] He's an animal.",
+    ].join('\n'),
+    takeaways: [],
+    useWhen: 'Use when checking full transcript retrieval.',
+  },
+]);
+const transcriptAnswer = buildSourceAwareAnswer('what did the transcript say about animal?', transcriptTraining);
+assert.match(transcriptAnswer.answer, /He's an animal/i);
+
 console.log('ask-hermes-core tests passed');

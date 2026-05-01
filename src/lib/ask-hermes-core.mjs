@@ -106,7 +106,7 @@ export function buildSourceAwareAnswer(question = "", trainingContext = "") {
       ? "General playbook"
       : "Uploaded training";
   const excerpt = best
-    ? best.replace(/^##\s+/gm, "").split("\n").filter(Boolean).slice(0, 10).join("\n")
+    ? selectRelevantExcerpt(best.replace(/^##\s+/gm, ""), tokens)
     : "No training has been pasted into this chat yet.";
 
   return {
@@ -162,6 +162,25 @@ function extractBlock(text, labels) {
 
 function inferTitle(text) {
   return text.split("\n").find((line) => line.trim().length > 0)?.slice(0, 80) || "Pasted training";
+}
+
+function selectRelevantExcerpt(section, tokens = []) {
+  const lines = String(section).split("\n").filter((line) => line.trim().length > 0);
+  const searchableTokens = tokens.filter((token) => !["training", "transcript", "loom", "about", "what", "where", "when", "from"].includes(token));
+  const relevantIndex = lines.findIndex((line) => {
+    const lower = line.toLowerCase();
+    return searchableTokens.some((token) => lower.includes(token));
+  });
+
+  if (relevantIndex === -1 || relevantIndex < 8) {
+    return lines.slice(0, 10).join("\n");
+  }
+
+  const header = lines.slice(0, 5);
+  const start = Math.max(5, relevantIndex - 2);
+  const end = Math.min(lines.length, relevantIndex + 3);
+  const relevant = lines.slice(start, end);
+  return [...header, "…", ...relevant].join("\n");
 }
 
 function clean(value) {
