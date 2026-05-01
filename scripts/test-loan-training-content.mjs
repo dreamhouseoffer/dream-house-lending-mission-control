@@ -1,6 +1,8 @@
 import { readFileSync } from 'fs';
+import { parseTrainingPaste } from '../src/lib/ask-hermes-core.mjs';
 
 const training = readFileSync('content/loan-training/loom-mortgage-files-voe-updates-underwriting.md', 'utf8');
+const parsed = parseTrainingPaste(training);
 
 function assert(condition, message) {
   if (!condition) {
@@ -17,5 +19,7 @@ assert(training.includes('FULL TIMESTAMPED TRANSCRIPT:'), 'training should inclu
 assert(timestampedLines.length >= 140, `expected at least 140 transcript lines, got ${timestampedLines.length}`);
 assert(training.includes('Hello. Hey Natalie'), 'training should include opening transcript text');
 assert(training.includes("He's an animal."), 'training should include closing transcript text');
+assert(parsed.content.includes('Hello. Hey Natalie'), 'parsed training content should include opening transcript text');
+assert(parsed.content.includes("He's an animal."), 'parsed training content should include closing transcript text');
 
-console.log(`PASS: full Loom transcript included (${timestampedLines.length} timestamped lines)`);
+console.log(`PASS: full Loom transcript included and parsed (${timestampedLines.length} timestamped lines)`);

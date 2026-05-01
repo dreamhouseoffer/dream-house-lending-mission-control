@@ -21,18 +21,6 @@ Core lessons:
 11. Manual underwriting: When AUS refers, tighter front-end/back-end DTI limits and compensating factor requirements matter. Know when the file has enough reserves/residual income/payment shock support and when it does not.
 12. Borrower/client calls: For sensitive cost/rate/points questions, call the borrower when a simple text will create confusion. Use MCM to walk through loan amount, rate, points, closing costs, escrows, prepaid items, and lender fees.
 
-KEY RULES / TAKEAWAYS:
-- VOE must show current pay structure, hourly rate if hourly, YTD through date, and hire/rehire history when applicable.
-- Save employer email confirmations as PDF when they clarify missing VOE details.
-- Recalculate income conservatively and consistently across MCM and Arive.
-- For school or seasonal employees, verify whether pay is 10, 11, or 12 months before using monthly income.
-- If AUS gives Refer, review reserves, ratios, and compensating factors before assuming the file works.
-- Moving lenders can save a file but resets important timelines. Communicate that early.
-- Cost/points/rate confusion should be handled by phone with a clear MCM breakdown.
-
-WHEN HERMES SHOULD USE THIS:
-Use when Claudia, Nathaly, or Fonz asks about VOE cleanup, income calculation, rehired borrowers, moving files between lenders, DU/AUS refer findings, manual underwriting, reserves, debt payoffs, or borrower cost explanation scripts.
-
 FULL TIMESTAMPED TRANSCRIPT:
 [00:13] Hello. Hey Natalie, how are you? Oh, good. Thanks for asking. What about you? I'm good. I'm good. How are you doing today?
 [00:20] Oh, good. Working on some files here. And I have some questions. How are you doing? Ah, man, just super. Still getting off his line to catching up on every everything, just putting out a fire on an escrow that I had.
@@ -181,3 +169,15 @@ FULL TIMESTAMPED TRANSCRIPT:
 [44:09] I'm basically going to say, hey, this is what it is, like either I do the lonal count or I cancel it.
 [44:14] Can I think go over with her? Well, she's going to have questions, but at the same time, it's kind of like, I don't know what up there.
 [44:20] He's an animal.
+
+KEY RULES / TAKEAWAYS:
+- VOE must show current pay structure, hourly rate if hourly, YTD through date, and hire/rehire history when applicable.
+- Save employer email confirmations as PDF when they clarify missing VOE details.
+- Recalculate income conservatively and consistently across MCM and Arive.
+- For school or seasonal employees, verify whether pay is 10, 11, or 12 months before using monthly income.
+- If AUS gives Refer, review reserves, ratios, and compensating factors before assuming the file works.
+- Moving lenders can save a file but resets important timelines. Communicate that early.
+- Cost/points/rate confusion should be handled by phone with a clear MCM breakdown.
+
+WHEN HERMES SHOULD USE THIS:
+Use when Claudia, Nathaly, or Fonz asks about VOE cleanup, income calculation, rehired borrowers, moving files between lenders, DU/AUS refer findings, manual underwriting, reserves, debt payoffs, or borrower cost explanation scripts.
