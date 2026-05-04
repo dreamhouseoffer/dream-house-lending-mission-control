@@ -117,21 +117,78 @@ const personalExpenseGroups = [
   { category: "Phone", total: 150, items: [["Verizon", 150]] },
 ];
 
-const waterfallData = [
-  { stage: "Revenue", value: 80668, color: "#34d399" },
-  { stage: "OpEx", value: 19561, color: "#f59e0b" },
-  { stage: "LO Comp", value: 23000, color: "#f87171" },
-  { stage: "Profit", value: 38107, color: "#60a5fa" },
-  { stage: "Personal Burn", value: 15622, color: "#fb7185" },
-  { stage: "Net Retained", value: 22485, color: "#a78bfa" },
-];
-
 const ratioCards = [
   { label: "Revenue per deal", value: "$4,287", tone: "green" as Tone },
   { label: "Revenue per employee", value: "$20,211/mo", tone: "green" as Tone },
-  { label: "Comp ratio", value: "57%", tone: "red" as Tone },
+  { label: "Comp ratio", value: "36%", tone: "amber" as Tone },
   { label: "Expense ratio", value: "48%", tone: "amber" as Tone },
   { label: "Breakeven", value: "5 deals/mo", tone: "slate" as Tone },
+];
+
+const aprilCloseChecklist = [
+  { owner: "Fonz", task: "Confirm funded April files + expected gross comp per file", status: "Needed before CFO signs off" },
+  { owner: "CFO", task: "Separate revenue received vs April commissions still pending", status: "Month-close item" },
+  { owner: "CFO", task: "Review payroll, LO comp, Claudia/Nataly pay, bonuses, and reimbursements", status: "Required" },
+  { owner: "Fonz", task: "Explain uncategorized, personal, or gray-area business charges", status: "Only exceptions" },
+  { owner: "CFO", task: "Calculate tax set-aside, owner draw capacity, and debt-paydown order", status: "Decision output" },
+];
+
+const cfoOrders = [
+  "Close April first: revenue received, pending comp, payroll, owner draws, and tax set-aside.",
+  "Do not spend from projected revenue until it is received and categorized.",
+  "Attack high-interest cards before adding new plays; Amex balance is the pressure point.",
+  "Use Mission Control as the monthly close dashboard, not a bookkeeping replacement.",
+];
+
+const revenuePerLoan = [
+  { month: "Jan", value: 4150 },
+  { month: "Feb", value: 5987 },
+  { month: "Mar", value: 3906 },
+  { month: "Apr*", value: 8067 },
+];
+
+const costToOriginate = [
+  { month: "Jan", value: 1956 },
+  { month: "Feb", value: 3260 },
+  { month: "Mar", value: 1304 },
+  { month: "Apr*", value: 1956 },
+];
+
+const productMix = [
+  { name: "FHA", deals: 15, pct: 45, color: "#60a5fa" },
+  { name: "CONV", deals: 8, pct: 24, color: "#34d399" },
+  { name: "Non-QM / Hard Money", deals: 7, pct: 21, color: "#f59e0b" },
+  { name: "HELOC", deals: 2, pct: 6, color: "#a78bfa" },
+  { name: "VA", deals: 1, pct: 3, color: "#f87171" },
+];
+
+const lenderDistribution = [
+  { name: "UWM", deals: 8, pct: 24 },
+  { name: "Pennymac", deals: 4, pct: 12 },
+  { name: "Valley Mortgage Investment", deals: 4, pct: 12 },
+  { name: "Flexpoint", deals: 3, pct: 9 },
+  { name: "Other", deals: 14, pct: 42 },
+];
+
+const processorWorkload = [
+  { name: "Mariana Gonzalez", files: "TBD", cycleTime: "Data coming soon" },
+  { name: "Claudia Melendez", files: "TBD", cycleTime: "Data coming soon" },
+  { name: "Raquel Ramos", files: "TBD", cycleTime: "Data coming soon" },
+  { name: "Will Rypkema", files: "TBD", cycleTime: "Data coming soon" },
+];
+
+const personalWaterfall = [
+  { stage: "Business Revenue", value: 40422, tone: "green" },
+  { stage: "Expenses", value: -19561, tone: "amber" },
+  { stage: "LO Comp", value: -23022, tone: "red" },
+  { stage: "Business Profit", value: -2161, tone: "slate" },
+  { stage: "Personal Burn", value: -15622, tone: "red" },
+  { stage: "Net Retained", value: -17783, tone: "red" },
+] as const;
+
+const debtScenarios = [
+  { label: "$2K/mo payments", payment: 2000, balanceInSixMonths: 21632, status: "Still too high after 6 months", shrinking: false },
+  { label: "$4K/mo payments", payment: 4000, balanceInSixMonths: 9087, status: "Meaningful shrink after 6 months", shrinking: true },
 ];
 
 const totalPersonalBurn = 15622;
@@ -265,6 +322,56 @@ function Sparkline({ values, color }: { values: number[]; color: string }) {
   );
 }
 
+function HorizontalBarList({ items, valueLabel }: { items: Array<{ name: string; pct: number; deals: number; color?: string }>; valueLabel?: string }) {
+  return (
+    <div className="space-y-4">
+      {items.map((item) => (
+        <div key={item.name}>
+          <div className="mb-2 flex items-center justify-between gap-3 text-sm">
+            <div>
+              <p className="font-medium text-white">{item.name}</p>
+              <p className="text-xs text-white/45">{item.deals} deals</p>
+            </div>
+            <span className="text-white/70">{valueLabel ? `${item.pct}${valueLabel}` : `${item.pct}%`}</span>
+          </div>
+          <div className="h-3 rounded-full bg-white/[0.05]">
+            <div className="h-3 rounded-full" style={{ width: `${item.pct}%`, backgroundColor: item.color ?? "#60a5fa" }} />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function TrendCard({ title, rows, lowerIsBetter = false }: { title: string; rows: Array<{ month: string; value: number }>; lowerIsBetter?: boolean }) {
+  const current = rows[rows.length - 1]?.value ?? 0;
+  const prior = rows[rows.length - 2]?.value ?? 0;
+  const improved = lowerIsBetter ? current <= prior : current >= prior;
+  return (
+    <SectionCard title={title} subtitle={lowerIsBetter ? "Lower is better" : "Higher is better"}>
+      <div className="space-y-4">
+        <div className="flex items-end justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+          <div>
+            <p className="text-xs uppercase tracking-[0.16em] text-white/35">Current</p>
+            <p className="mt-2 text-3xl font-semibold text-white">{fmt(current)}</p>
+          </div>
+          <span className={`rounded-full border px-2.5 py-1 text-xs ${improved ? toneMap.green : toneMap.red}`}>
+            {improved ? "Trending right" : "Trending wrong"}
+          </span>
+        </div>
+        <div className="space-y-3">
+          {rows.map((row) => (
+            <div key={row.month} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-sm">
+              <span className="text-white/65">{row.month}</span>
+              <span className="font-medium text-white">{fmt(row.value)}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </SectionCard>
+  );
+}
+
 export default function FinancePage() {
   const [view, setView] = useState<ViewMode>("company");
   const currentViewLabel = useMemo(() => (view === "company" ? "Company CFO View" : "Personal CFO View"), [view]);
@@ -276,7 +383,7 @@ export default function FinancePage() {
           <div>
             <p className="text-xs uppercase tracking-[0.22em] text-white/35">Dream House Lending</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white sm:text-4xl">Finance Command Center</h1>
-            <p className="mt-2 max-w-2xl text-sm text-white/50">Executive dashboard for company and personal cash performance, built for fast weekly CFO review.</p>
+            <p className="mt-2 max-w-2xl text-sm text-white/50">Hermes CFO mode: close the month, protect cash, flag debt/tax risk, and tell Fonz what financial decision actually matters.</p>
           </div>
           <div className="inline-flex rounded-2xl border border-white/10 bg-white/[0.03] p-1">
             {([
@@ -308,6 +415,43 @@ export default function FinancePage() {
             <MetricCard label="Monthly Profit" value={fmt(38107)} meta="Best month in current run-rate" tone="green" />
             <MetricCard label="Profit Margin" value={pct(profitMargin)} meta={profitMargin > 40 ? "Healthy margin" : profitMargin > 20 ? "Watch margin" : "Below target"} tone={profitMargin > 40 ? "green" : profitMargin > 20 ? "amber" : "red"} />
             <MetricCard label="Cash Position" value={fmt(23964)} meta="Last known Chase balance" tone="slate" />
+          </div>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
+            <MetricCard label="Cost to Originate" value={fmt(1956)} meta="Apr projected • target < $2.5K/file" tone="green" />
+            <MetricCard label="Revenue per Loan" value={fmt(8067)} meta="Apr projected • strongest month" tone="green" />
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+            <SectionCard title="April CFO Closeout" subtitle="What I need before I can call April closed">
+              <div className="space-y-3">
+                {aprilCloseChecklist.map((item) => (
+                  <div key={item.task} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <p className="text-xs uppercase tracking-[0.18em] text-white/35">{item.owner}</p>
+                        <p className="mt-1 text-sm font-medium text-white">{item.task}</p>
+                      </div>
+                      <span className="rounded-full border border-amber-500/20 bg-amber-500/8 px-2.5 py-1 text-xs text-amber-300">{item.status}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="Hermes CFO Orders" subtitle="The rules until April is clean">
+              <div className="space-y-3">
+                {cfoOrders.map((order, index) => (
+                  <div key={order} className="flex gap-3 rounded-2xl border border-emerald-500/15 bg-emerald-500/8 p-4 text-sm text-white/75">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-emerald-400/15 text-xs font-bold text-emerald-300">{index + 1}</span>
+                    <p>{order}</p>
+                  </div>
+                ))}
+                <div className="rounded-2xl border border-white/10 bg-black/15 p-4 text-sm text-white/55">
+                  CFO output each month: gross revenue, net profit, tax reserve, owner draw capacity, debt paydown, and uncategorized transaction list.
+                </div>
+              </div>
+            </SectionCard>
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]">
@@ -343,6 +487,11 @@ export default function FinancePage() {
             </SectionCard>
           </div>
 
+          <div className="grid gap-6 xl:grid-cols-2">
+            <TrendCard title="Cost to Originate Trend" rows={costToOriginate} lowerIsBetter />
+            <TrendCard title="Revenue per Loan Trend" rows={revenuePerLoan} />
+          </div>
+
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {loPerformance.map((lo) => (
               <div key={lo.name} className="rounded-2xl border border-white/10 bg-[#11161d] p-5">
@@ -373,6 +522,32 @@ export default function FinancePage() {
                   </div>
                 </div>
               </div>
+            ))}
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <SectionCard title="Product Mix" subtitle="Funded mix by loan type from Monday.com data">
+              <HorizontalBarList items={productMix} />
+            </SectionCard>
+            <SectionCard title="Lender Distribution" subtitle="Track concentration before it becomes a risk">
+              <HorizontalBarList items={lenderDistribution} />
+            </SectionCard>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-4">
+            {processorWorkload.map((processor) => (
+              <SectionCard key={processor.name} title={processor.name} subtitle="Processor workload placeholder">
+                <div className="space-y-3 text-sm">
+                  <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
+                    <p className="text-white/45">Files handled YTD</p>
+                    <p className="mt-1 text-2xl font-semibold text-white">{processor.files}</p>
+                  </div>
+                  <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
+                    <p className="text-white/45">Avg cycle time</p>
+                    <p className="mt-1 text-white">{processor.cycleTime}</p>
+                  </div>
+                </div>
+              </SectionCard>
             ))}
           </div>
 
@@ -536,18 +711,19 @@ export default function FinancePage() {
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
-            <SectionCard title="Monthly Cash Flow Waterfall" subtitle="How company cash flows through to household retention">
+            <SectionCard title="Monthly Cash Flow Waterfall" subtitle="Business revenue to personal retention using current average month">
               <div className="space-y-4">
-                {waterfallData.map((item) => {
-                  const max = 80668;
+                {personalWaterfall.map((item) => {
+                  const width = Math.min((Math.abs(item.value) / 40422) * 100, 100);
+                  const color = item.tone === "green" ? "#34d399" : item.tone === "amber" ? "#f59e0b" : item.tone === "red" ? "#f87171" : "#94a3b8";
                   return (
                     <div key={item.stage}>
                       <div className="mb-2 flex items-center justify-between text-sm">
                         <span className="text-white/60">{item.stage}</span>
-                        <span className="text-white">{fmt(item.value)}</span>
+                        <span className={item.value >= 0 ? "text-white" : "text-red-300"}>{item.value >= 0 ? fmt(item.value) : `-${fmt(Math.abs(item.value))}`}</span>
                       </div>
                       <div className="h-3 rounded-full bg-white/[0.05]">
-                        <div className="h-3 rounded-full" style={{ width: `${(item.value / max) * 100}%`, backgroundColor: item.color }} />
+                        <div className="h-3 rounded-full" style={{ width: `${width}%`, backgroundColor: color }} />
                       </div>
                     </div>
                   );
@@ -556,96 +732,51 @@ export default function FinancePage() {
             </SectionCard>
 
             <div className="space-y-6">
-              <SectionCard title="Debt Tracker" subtitle="Full liability stack — long-term and short-term">
+              <SectionCard title="Debt Paydown Tracker" subtitle="Amex path is red at current pace, healthier at higher payments">
                 <div className="space-y-4">
-                  <div>
-                    <p className="mb-2 text-xs uppercase tracking-[0.18em] text-white/35">Long-Term ({fmt(1868375)})</p>
-                    <div className="space-y-2">
-                      {[
-                        ["Weatherly mortgage (2.75%)", 667968, 4000],
-                        ["Cornerstone mortgage (2.25%)", 148303, 2066],
-                        ["Elm St mortgage (3.25%)", 112045, 1191],
-                        ["HELOC — Weatherly", 240000, 1600],
-                        ["Solar — Cornerstone", 20256, 167],
-                        ["301 Sanford (3.75%)", 127500, 1950],
-                        ["3500 Chester Lane (5.375%)", 302303, 2554],
-                        ["5301 Office Park", 250000, 2300],
-                      ].map(([label, balance, payment]) => (
-                        <div key={label as string} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-sm">
-                          <span className="text-white/65">{label as string}</span>
-                          <div className="text-right">
-                            <span className="text-white">{fmt(balance as number)}</span>
-                            <span className="ml-2 text-xs text-white/40">{fmt(payment as number)}/mo</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <p className="mb-2 text-xs uppercase tracking-[0.18em] text-white/35">Short-Term ({fmt(2549)})</p>
-                    <div className="space-y-2">
-                      {[
-                        ["Marissa Medical", 2149],
-                        ["Marissa Nordstrom", 400],
-                      ].map(([label, balance]) => (
-                        <div key={label as string} className="flex items-center justify-between rounded-xl border border-amber-500/15 bg-amber-500/[0.04] px-3 py-2 text-sm">
-                          <span className="text-white/65">{label as string}</span>
-                          <span className="text-amber-300">{fmt(balance as number)}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-                    <div className="flex items-center justify-between">
+                  <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                    <div className="flex items-center justify-between gap-3">
                       <div>
-                        <p className="text-xs uppercase tracking-[0.18em] text-white/35">Monthly Debt Service</p>
-                        <p className="mt-1 text-2xl font-semibold text-white">{fmt(15828)}/mo</p>
+                        <p className="text-sm text-white/45">Current Amex balance</p>
+                        <p className="mt-1 text-2xl font-semibold text-white">{fmt(30755)}</p>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs text-white/35">Total Liabilities</p>
-                        <p className="mt-1 text-lg font-semibold text-red-300">{fmt(1870924)}</p>
-                      </div>
+                      <span className="rounded-full border border-red-500/20 bg-red-500/8 px-2.5 py-1 text-xs text-red-300">{fmt(545)}/mo interest</span>
                     </div>
                   </div>
+                  {debtScenarios.map((scenario) => {
+                    const width = (scenario.balanceInSixMonths / 30755) * 100;
+                    return (
+                      <div key={scenario.label} className={`rounded-2xl border p-4 ${scenario.shrinking ? "border-emerald-500/20 bg-emerald-500/8" : "border-red-500/20 bg-red-500/8"}`}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="font-medium text-white">{scenario.label}</p>
+                            <p className="mt-1 text-sm text-white/60">Balance in 6 months: {fmt(scenario.balanceInSixMonths)}</p>
+                          </div>
+                          <span className={`text-sm ${scenario.shrinking ? "text-emerald-300" : "text-red-300"}`}>{scenario.status}</span>
+                        </div>
+                        <div className="mt-3 h-3 rounded-full bg-white/[0.06]">
+                          <div className="h-3 rounded-full" style={{ width: `${width}%`, backgroundColor: scenario.shrinking ? "#34d399" : "#f87171" }} />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </SectionCard>
 
-              <SectionCard title="Net Worth Snapshot" subtitle="Full balance sheet — assets minus liabilities">
-                <div className="space-y-3">
-                  <div>
-                    <p className="mb-2 text-xs uppercase tracking-[0.18em] text-white/35">Assets</p>
-                    <div className="space-y-2">
-                      {[
-                        ["Real Estate (6 properties)", 3029000, "emerald"],
-                        ["Vehicles (truck, Benzo, Camry)", 141000, "emerald"],
-                        ["Notes Receivable (9.5%)", 70000, "emerald"],
-                        ["Liquid Assets (bank accounts)", 86206, "emerald"],
-                        ["Crypto (Kraken)", 1150, "emerald"],
-                      ].map(([label, value]) => (
-                        <div key={label as string} className="flex items-center justify-between rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2 text-sm">
-                          <span className="text-white/65">{label as string}</span>
-                          <span className="text-emerald-300">{fmt(value as number)}</span>
-                        </div>
-                      ))}
+              <SectionCard title="Net Worth Snapshot" subtitle="Placeholders for a fuller balance sheet later">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                  {[
+                    ["Crypto", "~$1,150", "Kraken BTC"],
+                    ["Real estate equity", "TBD", "Needs updated equity calc"],
+                    ["Business value", "TBD", "Needs valuation method"],
+                    ["Total", "TBD", "Incomplete snapshot"],
+                  ].map(([label, value, note]) => (
+                    <div key={label} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                      <p className="text-sm text-white/45">{label}</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{value}</p>
+                      <p className="mt-1 text-xs text-white/40">{note}</p>
                     </div>
-                  </div>
-                  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/[0.05] px-3 py-2">
-                    <div className="flex items-center justify-between text-sm font-semibold">
-                      <span className="text-white/70">Total Assets</span>
-                      <span className="text-emerald-300">{fmt(3326206)}</span>
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-red-500/20 bg-red-500/[0.05] px-3 py-2">
-                    <div className="flex items-center justify-between text-sm font-semibold">
-                      <span className="text-white/70">Total Liabilities</span>
-                      <span className="text-red-300">–{fmt(1870924)}</span>
-                    </div>
-                  </div>
-                  <div className="rounded-2xl border border-blue-500/25 bg-blue-500/[0.07] p-4">
-                    <p className="text-xs uppercase tracking-[0.18em] text-white/35">Net Worth</p>
-                    <p className="mt-2 text-3xl font-semibold text-white">{fmt(1455282)}</p>
-                    <p className="mt-1 text-xs text-white/40">Assets {fmt(3326206)} − Liabilities {fmt(1870924)}</p>
-                  </div>
+                  ))}
                 </div>
               </SectionCard>
             </div>

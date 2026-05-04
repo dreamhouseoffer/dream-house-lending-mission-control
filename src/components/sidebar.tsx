@@ -27,6 +27,13 @@ const channelGroups: ChannelGroup[] = [
     ],
   },
   {
+    title: "money",
+    channels: [
+      { href: "/finance", label: "cfo", badge: "close" },
+      { href: "/portfolio", label: "portfolio" },
+    ],
+  },
+  {
     title: "team support",
     channels: [
       { href: "/team", label: "team" },
@@ -44,8 +51,6 @@ const channelGroups: ChannelGroup[] = [
       { href: "/tools", label: "tools" },
       { href: "/calendar", label: "calendar" },
       { href: "/campaigns", label: "campaigns" },
-      { href: "/finance", label: "cfo" },
-      { href: "/portfolio", label: "portfolio" },
       { href: "/vega", label: "markets" },
       { href: "/office", label: "office" },
     ],
@@ -137,7 +142,7 @@ function SidebarFooter() {
       <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/25">current channel</p>
       <p className="mt-2 font-mono text-sm font-bold text-white/75">#{current?.label ?? "dashboard"}</p>
       <p className="mt-1 text-[11px] leading-5 text-white/32">
-        Core = Today, Pipeline, Ask-Hermi. Archive = parked tools we can revisit later.
+        Core = Today, Pipeline, Ask-Hermi. Money = CFO closeout + portfolio. Archive = parked tools we can revisit later.
       </p>
     </div>
   );
