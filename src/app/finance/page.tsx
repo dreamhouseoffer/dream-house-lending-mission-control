@@ -125,6 +125,20 @@ const ratioCards = [
   { label: "Breakeven", value: "5 deals/mo", tone: "slate" as Tone },
 ];
 
+const aprilStatementSnapshot = [
+  { label: "Chase business checking", value: 51307.35, meta: "Ending balance 4/30 • deposits $173,494.56 • withdrawals $146,150.98 incl. checks/debit/ACH/fees", tone: "green" as Tone },
+  { label: "Amex Delta Reserve", value: 30755.24, meta: "Due 5/2 • min $1,056 • interest $545.45 • new charges $17,454.77", tone: "red" as Tone },
+  { label: "Capital One Spark", value: 2823.52, meta: "Due 5/3 • min $28 • new charges $13,459.50 • paid $18,201.04", tone: "amber" as Tone },
+  { label: "Advantage credit reports", value: 7122.0, meta: "4/30 invoices paid/zero due: $4,178.50 + $2,943.50", tone: "amber" as Tone },
+];
+
+const aprilCfoFindings = [
+  "Business checking ended April at $51,307.35 after $173,494.56 deposits. Strong cash inflow, but withdrawals were heavy.",
+  "Amex is the pressure point: $30,755.24 balance and $545.45 interest charged. Minimum payment thinking is not acceptable here.",
+  "Capital One Spark is manageable at $2,823.52, but charges were still $13,459.50 for the period.",
+  "Advantage report invoices total $7,122.00 and show $0 due, but this needs categorization by LO/person for true cost-to-originate.",
+];
+
 const aprilCloseChecklist = [
   { owner: "Fonz", task: "Confirm funded April files + expected gross comp per file", status: "Needed before CFO signs off" },
   { owner: "CFO", task: "Separate revenue received vs April commissions still pending", status: "Month-close item" },
@@ -414,7 +428,7 @@ export default function FinancePage() {
             <MetricCard label="Monthly Revenue" value={fmt(80668)} meta={`↑ ${pct(revenueGrowth)} vs Mar`} tone="green" />
             <MetricCard label="Monthly Profit" value={fmt(38107)} meta="Best month in current run-rate" tone="green" />
             <MetricCard label="Profit Margin" value={pct(profitMargin)} meta={profitMargin > 40 ? "Healthy margin" : profitMargin > 20 ? "Watch margin" : "Below target"} tone={profitMargin > 40 ? "green" : profitMargin > 20 ? "amber" : "red"} />
-            <MetricCard label="Cash Position" value={fmt(23964)} meta="Last known Chase balance" tone="slate" />
+            <MetricCard label="Cash Position" value={fmt(51307.35)} meta="Chase business checking 4/30" tone="green" />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
@@ -450,6 +464,31 @@ export default function FinancePage() {
                 <div className="rounded-2xl border border-white/10 bg-black/15 p-4 text-sm text-white/55">
                   CFO output each month: gross revenue, net profit, tax reserve, owner draw capacity, debt paydown, and uncategorized transaction list.
                 </div>
+              </div>
+            </SectionCard>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+            <SectionCard title="April Statement Snapshot" subtitle="Uploaded PDFs: Chase, Amex, Capital One, Advantage">
+              <div className="grid gap-3 sm:grid-cols-2">
+                {aprilStatementSnapshot.map((item) => (
+                  <div key={item.label} className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-white/35">{item.label}</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{fmt(item.value, item.value % 1 ? 2 : 0)}</p>
+                    <div className={`mt-3 rounded-xl border px-3 py-2 text-xs leading-relaxed ${toneMap[item.tone]}`}>{item.meta}</div>
+                  </div>
+                ))}
+              </div>
+            </SectionCard>
+
+            <SectionCard title="CFO Readout From PDFs" subtitle="What changed after reading the April documents">
+              <div className="space-y-3">
+                {aprilCfoFindings.map((finding, index) => (
+                  <div key={finding} className="flex gap-3 rounded-2xl border border-white/8 bg-white/[0.02] p-4 text-sm text-white/75">
+                    <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-blue-400/15 text-xs font-bold text-blue-300">{index + 1}</span>
+                    <p>{finding}</p>
+                  </div>
+                ))}
               </div>
             </SectionCard>
           </div>
