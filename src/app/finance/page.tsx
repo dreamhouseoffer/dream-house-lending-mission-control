@@ -185,14 +185,21 @@ const advantagePullMonths = [
 ];
 
 const advantagePullByPerson = [
-  { name: "Emmanuel Duran", knownCost: 14002.9, note: "Largest known pull cost Jan-Apr" },
-  { name: "Alfonso Garza Jr", knownCost: 8498.0, note: "Owner/self files" },
-  { name: "Yanelit Trujillo", knownCost: 4192.0, note: "Needs reimbursement match" },
-  { name: "Daisy Cantu", knownCost: 266.0, note: "Prior/other user" },
-  { name: "Claudia Melendez", knownCost: 31.0, note: "Small April charge" },
+  { name: "Emmanuel Duran / Manny", knownCost: 14002.9, reimbursements: 933.0, note: "YTD pull cost less loaded pass-through reimbursements" },
+  { name: "Alfonso Garza Jr", knownCost: 8498.0, reimbursements: 0.0, note: "YTD pull cost; reimbursements not loaded yet" },
+  { name: "Yanelit Trujillo", knownCost: 4192.0, reimbursements: 132.0, note: "YTD pull cost less loaded pass-through reimbursements" },
+  { name: "Daisy Cantu", knownCost: 266.0, reimbursements: 0.0, note: "Prior/other user" },
+  { name: "Claudia Melendez", knownCost: 31.0, reimbursements: 0.0, note: "Small April charge" },
 ];
 
+const advantagePullPnlRows = advantagePullByPerson.map((person) => ({
+  ...person,
+  netLeakage: person.knownCost - person.reimbursements,
+}));
+
 const knownAdvantagePullCost = advantagePullMonths.reduce((sum, row) => sum + row.total, 0);
+const loadedPassThroughReimbursements = advantagePullPnlRows.reduce((sum, row) => sum + row.reimbursements, 0);
+const knownCreditReportLeakage = advantagePullPnlRows.reduce((sum, row) => sum + row.netLeakage, 0);
 
 const aprilCloseChecklist = [
   { owner: "Fonz", task: "Confirm funded April files + expected gross comp per file", status: "Needed before CFO signs off" },
@@ -576,21 +583,45 @@ export default function FinancePage() {
                 </table>
               </div>
               <div className="space-y-3">
-                <div className="rounded-2xl border border-orange-400/20 bg-orange-400/8 p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-orange-200/70">Known vendor cost loaded</p>
-                  <p className="mt-2 text-3xl font-semibold text-orange-100">{fmt(knownAdvantagePullCost, 2)}</p>
-                  <p className="mt-2 text-sm text-orange-100/70">All Jan-Apr hard and soft invoices are now loaded. Net leakage = Advantage cost minus pass-through reimbursements collected.</p>
+                <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                  <div className="rounded-2xl border border-orange-400/20 bg-orange-400/8 p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-orange-200/70">YTD vendor cost</p>
+                    <p className="mt-2 text-3xl font-semibold text-orange-100">{fmt(knownAdvantagePullCost, 2)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/8 p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-emerald-200/70">Loaded reimbursements</p>
+                    <p className="mt-2 text-3xl font-semibold text-emerald-100">{fmt(loadedPassThroughReimbursements, 2)}</p>
+                  </div>
+                  <div className="rounded-2xl border border-red-400/20 bg-red-400/8 p-4">
+                    <p className="text-xs uppercase tracking-[0.16em] text-red-200/70">Known net leakage</p>
+                    <p className="mt-2 text-3xl font-semibold text-red-100">{fmt(knownCreditReportLeakage, 2)}</p>
+                  </div>
                 </div>
-                <div className="grid gap-2">
-                  {advantagePullByPerson.map((person) => (
-                    <div key={person.name} className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm">
-                      <div>
-                        <p className="font-medium text-white">{person.name}</p>
-                        <p className="text-xs text-white/35">{person.note}</p>
-                      </div>
-                      <p className="font-semibold text-white/80">{fmt(person.knownCost)}</p>
-                    </div>
-                  ))}
+                <p className="text-sm text-white/45">Simple CFO math: YTD credit report pulls by person minus pass-through reimbursements collected. Reimbursements loaded so far are from the April funded-file P&L.</p>
+                <div className="overflow-hidden rounded-2xl border border-white/10">
+                  <table className="w-full text-sm">
+                    <thead className="bg-white/[0.03] text-left text-xs uppercase tracking-[0.18em] text-white/40">
+                      <tr>
+                        <th className="px-4 py-3 font-medium">Person</th>
+                        <th className="px-4 py-3 text-right font-medium">Pull Cost</th>
+                        <th className="px-4 py-3 text-right font-medium">Reimbursed</th>
+                        <th className="px-4 py-3 text-right font-medium">Net Leakage</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {advantagePullPnlRows.map((person, i) => (
+                        <tr key={person.name} className={i % 2 ? "bg-white/[0.02]" : "bg-transparent"}>
+                          <td className="px-4 py-3 text-white">
+                            <div>{person.name}</div>
+                            <div className="mt-1 text-xs text-white/35">{person.note}</div>
+                          </td>
+                          <td className="px-4 py-3 text-right text-white/70">{fmt(person.knownCost)}</td>
+                          <td className="px-4 py-3 text-right text-emerald-300">{fmt(person.reimbursements)}</td>
+                          <td className="px-4 py-3 text-right font-semibold text-red-200">{fmt(person.netLeakage)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
             </div>
