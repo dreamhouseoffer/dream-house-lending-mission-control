@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 
 type ViewMode = "company" | "personal";
 type LoReviewMode = "monthly" | "ytd";
+type CfoTab = "overview" | "lo-pnl" | "credit" | "trends" | "expenses";
 type Tone = "green" | "amber" | "red" | "slate";
 
 const fmt = (n: number, digits = 0) =>
@@ -24,14 +25,14 @@ const companyRevenue = [
 ];
 
 const pnlRows = [
-  { month: "Jan", revenue: 41496.74, expenses: 19561, loComp: 24189.05, net: -2253.31 },
-  { month: "Feb", revenue: 35919.98, expenses: 19561, loComp: 18578.95, net: -2219.97 },
-  { month: "Mar", revenue: 58592.71, expenses: 19561, loComp: 33952.89, net: 5078.82 },
-  { month: "Apr", revenue: 83704.0, expenses: 19561, loComp: 25009.91, net: 39133.09 },
+  { month: "Jan", revenue: 41496.74, expenses: 19561, loComp: 22617.87, net: -682.13 },
+  { month: "Feb", revenue: 35919.98, expenses: 19561, loComp: 16933.07, net: -574.09 },
+  { month: "Mar", revenue: 58592.71, expenses: 19561, loComp: 23694.96, net: 15336.75 },
+  { month: "Apr", revenue: 83704.0, expenses: 19561, loComp: 24783.11, net: 39359.89 },
 ];
 
 const loPerformance = [
-  { name: "Alfonso Garza", deals: 23, ytdDeals: 23, revenueGenerated: 161162.14, comp: 13701.79, retention: 92.2, avgDeal: 7007, tone: "green" as Tone, note: "Best DHL retention" },
+  { name: "Alfonso Garza", deals: 23, ytdDeals: 23, revenueGenerated: 161162.14, comp: 0, retention: 92.2, avgDeal: 7007, tone: "green" as Tone, note: "Best DHL retention" },
   { name: "Emmanuel Duran", deals: 16, ytdDeals: 16, revenueGenerated: 34401.69, comp: 61228.86, retention: 36.0, avgDeal: 2150, tone: "red" as Tone, note: "Split/credit drag" },
   { name: "Yanelit Trujillo", deals: 4, ytdDeals: 4, revenueGenerated: 20491.10, comp: 16503.63, retention: 55.9, avgDeal: 5123, tone: "amber" as Tone, note: "Cleaner split, low volume" },
   { name: "Alex Tucker", deals: 2, ytdDeals: 2, revenueGenerated: 3658.50, comp: 10296.52, retention: 27.0, avgDeal: 1829, tone: "red" as Tone, note: "Bad margin" },
@@ -41,14 +42,14 @@ const loPnlRows = [
   {
     name: "Alfonso Garza",
     revenue: 68222.71,
-    directComp: 226.8,
+    directComp: 0,
     grossContribution: 68222.71,
     retention: 99.7,
     deals: 7,
     revenuePerDeal: 9746,
     reimbursements: 1094.59,
     status: "April engine",
-    action: "April Monday.com P&L: 7 funded files. Broker Check $69,469.10; pass-through reimbursements $1,094.59; Due to JLO $226.80; Due to Dream House $68,222.71.",
+    action: "April Monday.com P&L: 7 funded files. Broker Check $69,469.10; pass-through reimbursements $1,094.59; Due to LO $0.00; Due to Dream House $68,222.71.",
     tone: "green" as Tone,
   },
   {
@@ -246,7 +247,7 @@ const ytdLoPnlRows = [
     name: "Alfonso Garza",
     deals: 23,
     revenue: 161162.14,
-    directComp: 13701.79,
+    directComp: 0,
     reimbursements: 3338.09,
     creditCost: 8498,
     netCreditLeakage: ytdLoCreditLeakage.alfonso,
@@ -254,7 +255,7 @@ const ytdLoPnlRows = [
     retention: 92.2,
     revenuePerDeal: 7007,
     tone: "green" as Tone,
-    note: "Monday.com YTD: Broker Check $178,096.51; Broker Comp $174,863.92; Due to JLO $13,701.79; Due to DHL $161,162.14. Credit leakage subtracts pull-user cost less pass-through reimbursements.",
+    note: "Monday.com YTD: Broker Check $178,096.51; Broker Comp $174,863.92; Due to LO $0.00; Due to DHL $161,162.14. Credit leakage subtracts pull-user cost less pass-through reimbursements.",
   },
   {
     period: "YTD Jan-Apr",
@@ -379,6 +380,14 @@ const toneMap: Record<Tone, string> = {
   red: "border-red-500/20 bg-red-500/8 text-red-300",
   slate: "border-white/10 bg-white/[0.03] text-white/70",
 };
+
+const cfoTabs: Array<{ key: CfoTab; label: string; description: string }> = [
+  { key: "overview", label: "Overview", description: "Month-close orders, cash snapshot, and what needs a decision." },
+  { key: "lo-pnl", label: "LO P&L", description: "Monthly/YTD LO profitability from Monday.com funding fields." },
+  { key: "credit", label: "Credit Leakage", description: "Credit-report pull cost minus pass-through reimbursements." },
+  { key: "trends", label: "Trends", description: "Revenue, monthly P&L, product mix, and lender concentration." },
+  { key: "expenses", label: "Expenses", description: "Operating costs, savings, ratios, and debt pressure." },
+];
 
 function MetricCard({ label, value, meta, tone = "slate" }: { label: string; value: string; meta?: string; tone?: Tone }) {
   return (
@@ -549,8 +558,10 @@ function TrendCard({ title, rows, lowerIsBetter = false }: { title: string; rows
 
 export default function FinancePage() {
   const [view, setView] = useState<ViewMode>("company");
+  const [cfoTab, setCfoTab] = useState<CfoTab>("overview");
   const [loReviewMode, setLoReviewMode] = useState<LoReviewMode>("monthly");
   const currentViewLabel = useMemo(() => (view === "company" ? "Company CFO View" : "Personal CFO View"), [view]);
+  const currentCfoTab = cfoTabs.find((tab) => tab.key === cfoTab) ?? cfoTabs[0];
   const activeLoPnlRows = loReviewMode === "monthly" ? monthlyLoPnlRows : ytdLoPnlRows;
   const activeLoPnlTotals = activeLoPnlRows.reduce(
     (totals, row) => ({
@@ -611,6 +622,27 @@ export default function FinancePage() {
             <MetricCard label="Revenue per Loan" value={fmt(8067)} meta="Apr projected • strongest month" tone="green" />
           </div>
 
+          <div className="rounded-3xl border border-white/10 bg-[#0f141a] p-3">
+            <div className="grid gap-2 md:grid-cols-5">
+              {cfoTabs.map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setCfoTab(tab.key)}
+                  className={`rounded-2xl border px-4 py-3 text-left transition ${cfoTab === tab.key ? "border-emerald-400/30 bg-emerald-400/12 text-white" : "border-white/8 bg-white/[0.02] text-white/55 hover:text-white"}`}
+                >
+                  <span className="block text-sm font-semibold">{tab.label}</span>
+                  <span className="mt-1 block text-xs leading-relaxed text-white/40">{tab.description}</span>
+                </button>
+              ))}
+            </div>
+            <p className="mt-3 rounded-2xl border border-blue-400/20 bg-blue-400/8 px-4 py-3 text-sm text-blue-100">
+              You are viewing: <span className="font-semibold">{currentCfoTab.label}</span> — {currentCfoTab.description}
+            </p>
+          </div>
+
+          {cfoTab === "overview" ? (
+            <>
           <div className="grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
             <SectionCard title="April CFO Closeout" subtitle="What I need before I can call April closed">
               <div className="space-y-3">
@@ -668,6 +700,10 @@ export default function FinancePage() {
             </SectionCard>
           </div>
 
+            </>
+          ) : null}
+
+          {cfoTab === "credit" ? (
           <SectionCard title="Advantage Pull Cost — Jan to Apr" subtitle="Vendor cost by invoice; pass-through fees are reimbursements, not expenses">
             <div className="grid gap-4 xl:grid-cols-[1fr_0.95fr]">
               <div className="overflow-hidden rounded-2xl border border-white/10">
@@ -740,6 +776,10 @@ export default function FinancePage() {
             </div>
           </SectionCard>
 
+          ) : null}
+
+          {cfoTab === "trends" ? (
+            <>
           <div className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]">
             <SectionCard title="Revenue Trend" subtitle="Monthly revenue to Dream House with breakeven reference">
               <MiniBarChart data={companyRevenue} target={69000} />
@@ -778,6 +818,19 @@ export default function FinancePage() {
             <TrendCard title="Revenue per Loan Trend" rows={revenuePerLoan} />
           </div>
 
+            <div className="grid gap-6 xl:grid-cols-2">
+              <SectionCard title="Product Mix" subtitle="Funded mix by loan type from Monday.com data">
+                <HorizontalBarList items={productMix} />
+              </SectionCard>
+              <SectionCard title="Lender Distribution" subtitle="Track concentration before it becomes a risk">
+                <HorizontalBarList items={lenderDistribution} />
+              </SectionCard>
+            </div>
+            </>
+          ) : null}
+
+          {cfoTab === "lo-pnl" ? (
+            <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {loPerformance.map((lo) => (
               <div key={lo.name} className="rounded-2xl border border-white/10 bg-[#11161d] p-5">
@@ -799,7 +852,7 @@ export default function FinancePage() {
                     <p className="mt-1 text-lg font-semibold text-white">{fmt(lo.revenueGenerated)}</p>
                   </div>
                   <div>
-                    <p className="text-white/35">Due to LO/JLO</p>
+                    <p className="text-white/35">Due to LO</p>
                     <p className="mt-1 text-white/80">{fmt(lo.comp)}</p>
                   </div>
                   <div>
@@ -811,7 +864,7 @@ export default function FinancePage() {
             ))}
           </div>
 
-          <SectionCard title="Loan Officer P&L Review" subtitle="Monthly review and YTD review by LO — Due to Dream House, Due to LO/JLO, reimbursements, credit leakage, and contribution">
+          <SectionCard title="Loan Officer P&L Review" subtitle="Monthly review and YTD review by LO — Due to Dream House, Due to LO, reimbursements, credit leakage, and contribution">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="grid gap-3 sm:grid-cols-3 lg:flex-1">
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -851,7 +904,7 @@ export default function FinancePage() {
                     <th className="px-4 py-3 font-medium">LO</th>
                     <th className="px-4 py-3 text-right font-medium">Deals</th>
                     <th className="px-4 py-3 text-right font-medium">Due to DHL</th>
-                    <th className="px-4 py-3 text-right font-medium">Due LO/JLO</th>
+                    <th className="px-4 py-3 text-right font-medium">Due LO</th>
                     <th className="px-4 py-3 text-right font-medium">Reimb.</th>
                     <th className="px-4 py-3 text-right font-medium">Credit Cost</th>
                     <th className="px-4 py-3 text-right font-medium">Net Leakage</th>
@@ -917,15 +970,11 @@ export default function FinancePage() {
             </div>
           </SectionCard>
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <SectionCard title="Product Mix" subtitle="Funded mix by loan type from Monday.com data">
-              <HorizontalBarList items={productMix} />
-            </SectionCard>
-            <SectionCard title="Lender Distribution" subtitle="Track concentration before it becomes a risk">
-              <HorizontalBarList items={lenderDistribution} />
-            </SectionCard>
-          </div>
+            </>
+          ) : null}
 
+          {cfoTab === "expenses" ? (
+            <>
           <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
             <SectionCard title="Expense Breakdown" subtitle="Monthly operating load by category">
               <div className="grid gap-5 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
@@ -1033,6 +1082,8 @@ export default function FinancePage() {
               </div>
             ))}
           </div>
+            </>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-6">
