@@ -48,7 +48,7 @@ const loPnlRows = [
     revenuePerDeal: 5991,
     reimbursements: 933,
     status: "Profitable before overhead, split is rich",
-    action: "April file-level P&L: 5 primary funded files plus 1 JLO split. Dream House retained $10,449.75 before allocated overhead. The $933 in pass-through fees is reimbursement collected for credit pulls, not a cost. True credit cost still needs Advantage pull matching.",
+    action: "April file-level P&L: 5 primary funded files plus 1 JLO split from Monday.com/workbook data. Dream House retained $10,449.75 before allocated overhead. The $933 in pass-through fees is reimbursement collected for credit pulls, not a cost.",
     tone: "amber" as Tone,
   },
   {
@@ -166,7 +166,7 @@ const aprilCfoFindings = [
   "Business checking ended April at $51,307.35 after $173,494.56 deposits. Strong cash inflow, but withdrawals were heavy.",
   "Amex is the pressure point: $30,755.24 balance and $545.45 interest charged. Minimum payment thinking is not acceptable here.",
   "Capital One Spark is manageable at $2,823.52, but charges were still $13,459.50 for the period.",
-  "Advantage report invoices total $7,122.00 and show $0 due, but this needs categorization by LO/person for true cost-to-originate.",
+  "Advantage report invoices total $7,122.00 and show $0 due. Credit-report cost should be attributed by the user shown on the pull invoices, then reduced by pass-through reimbursements.",
 ];
 
 const advantagePullMonths = [
@@ -210,7 +210,7 @@ const monthlyLoPnlRows = loPnlRows.map((lo) => ({
   retention: lo.retention,
   revenuePerDeal: lo.revenuePerDeal,
   tone: lo.tone,
-  note: `${lo.status}. April funded-file workbook loaded; monthly credit cost by person still needs exact April Advantage match.`,
+  note: `${lo.status}. April funded-file revenue/LO comp comes from Monday.com/workbook data; credit leakage comes from user-attributed credit-report pulls minus reimbursements.`,
 }));
 
 const ytdLoPnlRows = [
@@ -227,7 +227,7 @@ const ytdLoPnlRows = [
     retention: 87,
     revenuePerDeal: 6332,
     tone: "amber" as Tone,
-    note: "Starter YTD view. Reimbursements not loaded yet, so leakage may be overstated.",
+    note: "YTD view from Monday.com funded-file economics plus user-attributed credit-report pulls. Reimbursements reduce leakage when loaded.",
   },
   {
     period: "YTD Jan-Apr",
@@ -242,7 +242,7 @@ const ytdLoPnlRows = [
     retention: 36,
     revenuePerDeal: 5964,
     tone: "red" as Tone,
-    note: "Biggest red flag: high comp plus largest known credit leakage. Validate revenue source before final call.",
+    note: "Biggest red flag in current YTD view: high comp plus largest known credit leakage. Monday.com is the revenue/LO source; credit reports are the pull-cost source.",
   },
   {
     period: "YTD Jan-Apr",
@@ -323,13 +323,6 @@ const lenderDistribution = [
   { name: "Valley Mortgage Investment", deals: 4, pct: 12 },
   { name: "Flexpoint", deals: 3, pct: 9 },
   { name: "Other", deals: 14, pct: 42 },
-];
-
-const processorWorkload = [
-  { name: "Mariana Gonzalez", files: "TBD", cycleTime: "Data coming soon" },
-  { name: "Claudia Melendez", files: "TBD", cycleTime: "Data coming soon" },
-  { name: "Raquel Ramos", files: "TBD", cycleTime: "Data coming soon" },
-  { name: "Will Rypkema", files: "TBD", cycleTime: "Data coming soon" },
 ];
 
 const personalWaterfall = [
@@ -849,8 +842,8 @@ export default function FinancePage() {
                       <td className="px-4 py-3 text-right text-emerald-300">{fmt(lo.revenue)}</td>
                       <td className="px-4 py-3 text-right text-white/70">{fmt(lo.directComp)}</td>
                       <td className="px-4 py-3 text-right text-emerald-200">{fmt(lo.reimbursements)}</td>
-                      <td className="px-4 py-3 text-right text-orange-200">{lo.creditCost ? fmt(lo.creditCost) : "pending"}</td>
-                      <td className="px-4 py-3 text-right text-red-200">{lo.netCreditLeakage ? fmt(lo.netCreditLeakage) : loReviewMode === "monthly" ? "pending" : fmt(0)}</td>
+                      <td className="px-4 py-3 text-right text-orange-200">{lo.creditCost ? fmt(lo.creditCost) : loReviewMode === "monthly" ? "invoice split" : fmt(0)}</td>
+                      <td className="px-4 py-3 text-right text-red-200">{lo.netCreditLeakage ? fmt(lo.netCreditLeakage) : loReviewMode === "monthly" ? "invoice split" : fmt(0)}</td>
                       <td className={`px-4 py-3 text-right font-semibold ${lo.contribution >= 0 ? "text-emerald-300" : "text-red-300"}`}>{fmt(lo.contribution)}</td>
                     </tr>
                   ))}
@@ -879,7 +872,7 @@ export default function FinancePage() {
                     </div>
                     <div className="rounded-xl border border-white/8 bg-black/20 p-3">
                       <p className="text-white/35">Credit leakage</p>
-                      <p className="mt-1 font-semibold text-red-200">{lo.netCreditLeakage ? fmt(lo.netCreditLeakage) : "pending"}</p>
+                      <p className="mt-1 font-semibold text-red-200">{lo.netCreditLeakage ? fmt(lo.netCreditLeakage) : loReviewMode === "monthly" ? "invoice split" : fmt(0)}</p>
                     </div>
                     <div className="rounded-xl border border-white/8 bg-black/20 p-3">
                       <p className="text-white/35">Contribution</p>
@@ -893,7 +886,7 @@ export default function FinancePage() {
 
             <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/8 p-4">
               <p className="text-sm font-semibold text-blue-200">Data rule:</p>
-              <p className="mt-2 text-sm text-white/70">Monthly LO P&L uses loaded funded-file workbook data. YTD LO P&L uses loaded YTD LO summary plus Jan-Apr Advantage pulls. Final accuracy requires Jan-Mar funded-file pass-through reimbursements and file-level LO revenue validation.</p>
+              <p className="mt-2 text-sm text-white/70">Monthly and YTD LO P&L use Monday.com funded-file revenue/LO attribution. Credit leakage is credit-report pulls by user minus pass-through reimbursements. No processor allocation or fallout-count layer in this Mission Control view.</p>
             </div>
           </SectionCard>
 
@@ -904,23 +897,6 @@ export default function FinancePage() {
             <SectionCard title="Lender Distribution" subtitle="Track concentration before it becomes a risk">
               <HorizontalBarList items={lenderDistribution} />
             </SectionCard>
-          </div>
-
-          <div className="grid gap-6 xl:grid-cols-4">
-            {processorWorkload.map((processor) => (
-              <SectionCard key={processor.name} title={processor.name} subtitle="Processor workload placeholder">
-                <div className="space-y-3 text-sm">
-                  <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-                    <p className="text-white/45">Files handled YTD</p>
-                    <p className="mt-1 text-2xl font-semibold text-white">{processor.files}</p>
-                  </div>
-                  <div className="rounded-xl border border-white/8 bg-white/[0.02] p-3">
-                    <p className="text-white/45">Avg cycle time</p>
-                    <p className="mt-1 text-white">{processor.cycleTime}</p>
-                  </div>
-                </div>
-              </SectionCard>
-            ))}
           </div>
 
           <div className="grid gap-6 xl:grid-cols-[0.92fr_1.08fr]">
