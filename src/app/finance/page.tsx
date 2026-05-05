@@ -17,52 +17,78 @@ const fmt = (n: number, digits = 0) =>
 const pct = (n: number) => `${n.toFixed(1)}%`;
 
 const companyRevenue = [
-  { month: "Jan", revenue: 41497 },
-  { month: "Feb", revenue: 35920 },
-  { month: "Mar", revenue: 58593 },
-  { month: "Apr", revenue: 80668, projected: true },
+  { month: "Jan", revenue: 41496.74, projected: false },
+  { month: "Feb", revenue: 35919.98, projected: false },
+  { month: "Mar", revenue: 58592.71, projected: false },
+  { month: "Apr", revenue: 83704.0, projected: false },
 ];
 
 const pnlRows = [
-  { month: "Jan", revenue: 41497, expenses: 19561, loComp: 24189, net: -2253 },
-  { month: "Feb", revenue: 35920, expenses: 19561, loComp: 18579, net: -2220 },
-  { month: "Mar", revenue: 58593, expenses: 19561, loComp: 33953, net: 5079 },
-  { month: "Apr*", revenue: 80668, expenses: 19561, loComp: 23000, net: 38107 },
+  { month: "Jan", revenue: 41496.74, expenses: 19561, loComp: 24189.05, net: -2253.31 },
+  { month: "Feb", revenue: 35919.98, expenses: 19561, loComp: 18578.95, net: -2219.97 },
+  { month: "Mar", revenue: 58592.71, expenses: 19561, loComp: 33952.89, net: 5078.82 },
+  { month: "Apr", revenue: 83704.0, expenses: 19561, loComp: 25009.91, net: 39133.09 },
 ];
 
 const loPerformance = [
-  { name: "Alfonso Garza", deals: 17, ytdDeals: 17, revenueGenerated: 93973, comp: 107700, retention: 87, avgDeal: 6332, tone: "green" as Tone, note: "The standard" },
-  { name: "Emmanuel Duran", deals: 11, ytdDeals: 11, revenueGenerated: 23952, comp: 65600, retention: 36, avgDeal: 5964, tone: "red" as Tone, note: "Red flag" },
-  { name: "Yanelit Trujillo", deals: 4, ytdDeals: 4, revenueGenerated: 20491, comp: 36700, retention: 56, avgDeal: 9188, tone: "amber" as Tone, note: "Watch split" },
-  { name: "Alex Tucker", deals: 1, ytdDeals: 1, revenueGenerated: 3062, comp: 11300, retention: 27, avgDeal: 11300, tone: "red" as Tone, note: "Worst margin" },
+  { name: "Alfonso Garza", deals: 23, ytdDeals: 23, revenueGenerated: 161162.14, comp: 13701.79, retention: 92.2, avgDeal: 7007, tone: "green" as Tone, note: "Best DHL retention" },
+  { name: "Emmanuel Duran", deals: 16, ytdDeals: 16, revenueGenerated: 34401.69, comp: 61228.86, retention: 36.0, avgDeal: 2150, tone: "red" as Tone, note: "Split/credit drag" },
+  { name: "Yanelit Trujillo", deals: 4, ytdDeals: 4, revenueGenerated: 20491.10, comp: 16503.63, retention: 55.9, avgDeal: 5123, tone: "amber" as Tone, note: "Cleaner split, low volume" },
+  { name: "Alex Tucker", deals: 2, ytdDeals: 2, revenueGenerated: 3658.50, comp: 10296.52, retention: 27.0, avgDeal: 1829, tone: "red" as Tone, note: "Bad margin" },
 ];
 
 const loPnlRows = [
   {
+    name: "Alfonso Garza",
+    revenue: 68222.71,
+    directComp: 226.8,
+    grossContribution: 68222.71,
+    retention: 99.7,
+    deals: 7,
+    revenuePerDeal: 9746,
+    reimbursements: 1094.59,
+    status: "April engine",
+    action: "April Monday.com P&L: 7 funded files. Broker Check $69,469.10; pass-through reimbursements $1,094.59; Due to JLO $226.80; Due to Dream House $68,222.71.",
+    tone: "green" as Tone,
+  },
+  {
     name: "Emmanuel Duran",
-    revenue: 29955.43,
-    directComp: 19633.48,
+    revenue: 10449.75,
+    directComp: 19406.68,
     grossContribution: 10449.75,
     retention: 34.9,
     deals: 5,
-    revenuePerDeal: 5991,
-    reimbursements: 933,
-    status: "Profitable before overhead, split is rich",
-    action: "April file-level P&L: 5 primary funded files plus 1 JLO split from Monday.com/workbook data. Dream House retained $10,449.75 before allocated overhead. The $933 in pass-through fees is reimbursement collected for credit pulls, not a cost.",
+    revenuePerDeal: 2090,
+    reimbursements: 801,
+    status: "Profitable before credit leakage, split is rich",
+    action: "April Monday.com P&L: 5 funded files. Broker Check $30,756.43; pass-through reimbursements $801.00; Due to LO $19,406.68; Due to Dream House $10,449.75.",
     tone: "amber" as Tone,
   },
   {
     name: "Yanelit Trujillo",
-    revenue: 8063.73,
+    revenue: 4435.05,
     directComp: 3628.68,
     grossContribution: 4435.05,
     retention: 55.0,
     deals: 1,
-    revenuePerDeal: 8064,
+    revenuePerDeal: 4435,
     reimbursements: 132,
     status: "Clean split, needs more volume",
-    action: "April file-level P&L: 1 primary funded file. Dream House retained $4,435.05 before allocated overhead. The $132 in pass-through fees is reimbursement collected for credit pulls, not a cost. Split is healthier than Emmanuel, but one funded file is not enough to judge capacity.",
+    action: "April Monday.com P&L: 1 funded file. Broker Check $8,195.73; pass-through reimbursements $132.00; Due to LO $3,628.68; Due to Dream House $4,435.05.",
     tone: "green" as Tone,
+  },
+  {
+    name: "Alex Tucker",
+    revenue: 596.49,
+    directComp: 1747.75,
+    grossContribution: 596.49,
+    retention: 27.0,
+    deals: 1,
+    revenuePerDeal: 596,
+    reimbursements: 135,
+    status: "Bad margin",
+    action: "April Monday.com P&L: 1 funded file. Broker Check $2,344.24; pass-through reimbursements $135.00; Due to LO $1,747.75; Due to Dream House $596.49.",
+    tone: "red" as Tone,
   },
 ];
 
@@ -177,9 +203,10 @@ const advantagePullMonths = [
 ];
 
 const advantagePullByPerson = [
-  { name: "Emmanuel Duran / Manny", knownCost: 14002.9, reimbursements: 933.0, note: "YTD pull cost less loaded pass-through reimbursements" },
-  { name: "Alfonso Garza Jr", knownCost: 8498.0, reimbursements: 0.0, note: "YTD pull cost; reimbursements not loaded yet" },
-  { name: "Yanelit Trujillo", knownCost: 4192.0, reimbursements: 132.0, note: "YTD pull cost less loaded pass-through reimbursements" },
+  { name: "Emmanuel Duran / Manny", knownCost: 14002.9, reimbursements: 3412.0, note: "YTD pull cost less Monday.com pass-through reimbursements collected" },
+  { name: "Alfonso Garza Jr", knownCost: 8498.0, reimbursements: 3338.09, note: "YTD pull cost less Monday.com pass-through reimbursements collected" },
+  { name: "Yanelit Trujillo", knownCost: 4192.0, reimbursements: 690.0, note: "YTD pull cost less Monday.com pass-through reimbursements collected" },
+  { name: "Alex Tucker", knownCost: 0.0, reimbursements: 405.0, note: "Monday.com pass-through collected; matching pull-user invoice not loaded" },
   { name: "Daisy Cantu", knownCost: 266.0, reimbursements: 0.0, note: "Prior/other user" },
   { name: "Claudia Melendez", knownCost: 31.0, reimbursements: 0.0, note: "Small April charge" },
 ];
@@ -194,7 +221,7 @@ const ytdLoCreditLeakage = {
   alfonso: creditLeakageByName.get("Alfonso Garza Jr") ?? 0,
   emmanuel: creditLeakageByName.get("Emmanuel Duran / Manny") ?? 0,
   yanelit: creditLeakageByName.get("Yanelit Trujillo") ?? 0,
-  alex: 0,
+  alex: creditLeakageByName.get("Alex Tucker") ?? 0,
 };
 
 const monthlyLoPnlRows = loPnlRows.map((lo) => ({
@@ -217,62 +244,62 @@ const ytdLoPnlRows = [
   {
     period: "YTD Jan-Apr",
     name: "Alfonso Garza",
-    deals: 17,
-    revenue: 93973,
-    directComp: 107700,
-    reimbursements: 0,
+    deals: 23,
+    revenue: 161162.14,
+    directComp: 13701.79,
+    reimbursements: 3338.09,
     creditCost: 8498,
     netCreditLeakage: ytdLoCreditLeakage.alfonso,
-    contribution: 93973 - 107700 - ytdLoCreditLeakage.alfonso,
-    retention: 87,
-    revenuePerDeal: 6332,
-    tone: "amber" as Tone,
-    note: "YTD view should come from Monday.com Broker Check, LO, Due to LO, and Due to Dream House Lending fields plus user-attributed credit-report pulls. Reimbursements reduce leakage when loaded.",
+    contribution: 161162.14 - ytdLoCreditLeakage.alfonso,
+    retention: 92.2,
+    revenuePerDeal: 7007,
+    tone: "green" as Tone,
+    note: "Monday.com YTD: Broker Check $178,096.51; Broker Comp $174,863.92; Due to JLO $13,701.79; Due to DHL $161,162.14. Credit leakage subtracts pull-user cost less pass-through reimbursements.",
   },
   {
     period: "YTD Jan-Apr",
     name: "Emmanuel Duran / Manny",
-    deals: 11,
-    revenue: 23952,
-    directComp: 65600,
-    reimbursements: 933,
+    deals: 16,
+    revenue: 34401.69,
+    directComp: 61228.86,
+    reimbursements: 3412,
     creditCost: 14002.9,
     netCreditLeakage: ytdLoCreditLeakage.emmanuel,
-    contribution: 23952 - 65600 - ytdLoCreditLeakage.emmanuel,
-    retention: 36,
-    revenuePerDeal: 5964,
+    contribution: 34401.69 - ytdLoCreditLeakage.emmanuel,
+    retention: 36.0,
+    revenuePerDeal: 2150,
     tone: "red" as Tone,
-    note: "Biggest red flag in current YTD view: high comp plus largest known credit leakage. Monday.com Broker Check/Due to LO/Due to DHL is the revenue split source; credit reports are the pull-cost source.",
+    note: "Monday.com YTD: Broker Check $99,010.83; Due to LO $61,228.86; Due to DHL $34,401.69. Biggest drag is split plus credit leakage.",
   },
   {
     period: "YTD Jan-Apr",
     name: "Yanelit Trujillo",
     deals: 4,
-    revenue: 20491,
-    directComp: 36700,
-    reimbursements: 132,
+    revenue: 20491.10,
+    directComp: 16503.63,
+    reimbursements: 690,
     creditCost: 4192,
     netCreditLeakage: ytdLoCreditLeakage.yanelit,
-    contribution: 20491 - 36700 - ytdLoCreditLeakage.yanelit,
-    retention: 56,
-    revenuePerDeal: 9188,
-    tone: "red" as Tone,
-    note: "Needs more volume and reimbursement matching; one clean April file is not enough to carry YTD economics.",
+    contribution: 20491.10 - ytdLoCreditLeakage.yanelit,
+    retention: 55.9,
+    revenuePerDeal: 5123,
+    tone: "amber" as Tone,
+    note: "Monday.com YTD: Broker Check $37,364.73; Due to LO $16,503.63; Due to DHL $20,491.10. Margin is usable; volume is the issue.",
   },
   {
     period: "YTD Jan-Apr",
     name: "Alex Tucker",
-    deals: 1,
-    revenue: 3062,
-    directComp: 11300,
-    reimbursements: 0,
+    deals: 2,
+    revenue: 3658.50,
+    directComp: 10296.52,
+    reimbursements: 405,
     creditCost: 0,
     netCreditLeakage: ytdLoCreditLeakage.alex,
-    contribution: 3062 - 11300 - ytdLoCreditLeakage.alex,
-    retention: 27,
-    revenuePerDeal: 11300,
+    contribution: 3658.50 - ytdLoCreditLeakage.alex,
+    retention: 27.0,
+    revenuePerDeal: 1829,
     tone: "red" as Tone,
-    note: "Low volume and bad margin in current loaded data.",
+    note: "Monday.com YTD: Broker Check $13,955.02; Due to LO $10,296.52; Due to DHL $3,658.50. Bad margin even before any unmatched pull-user cost.",
   },
 ];
 
@@ -683,7 +710,7 @@ export default function FinancePage() {
                     <p className="mt-2 text-3xl font-semibold text-red-100">{fmt(knownCreditReportLeakage, 2)}</p>
                   </div>
                 </div>
-                <p className="text-sm text-white/45">Simple CFO math: YTD credit report pulls by person minus pass-through reimbursements collected. Reimbursements loaded so far are from the April funded-file P&L.</p>
+                <p className="text-sm text-white/45">Simple CFO math: YTD credit report pulls by person minus Monday.com pass-through reimbursements collected from funded files.</p>
                 <div className="overflow-hidden rounded-2xl border border-white/10">
                   <table className="w-full text-sm">
                     <thead className="bg-white/[0.03] text-left text-xs uppercase tracking-[0.18em] text-white/40">
@@ -768,11 +795,11 @@ export default function FinancePage() {
                     <p className="text-xs text-white/40">YTD {lo.ytdDeals}</p>
                   </div>
                   <div>
-                    <p className="text-white/35">Revenue generated</p>
+                    <p className="text-white/35">Due to DHL</p>
                     <p className="mt-1 text-lg font-semibold text-white">{fmt(lo.revenueGenerated)}</p>
                   </div>
                   <div>
-                    <p className="text-white/35">Comp</p>
+                    <p className="text-white/35">Due to LO/JLO</p>
                     <p className="mt-1 text-white/80">{fmt(lo.comp)}</p>
                   </div>
                   <div>
@@ -784,7 +811,7 @@ export default function FinancePage() {
             ))}
           </div>
 
-          <SectionCard title="Loan Officer P&L Review" subtitle="Monthly review and YTD review by LO — revenue, comp, reimbursements, credit leakage, and contribution">
+          <SectionCard title="Loan Officer P&L Review" subtitle="Monthly review and YTD review by LO — Due to Dream House, Due to LO/JLO, reimbursements, credit leakage, and contribution">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
               <div className="grid gap-3 sm:grid-cols-3 lg:flex-1">
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -792,7 +819,7 @@ export default function FinancePage() {
                   <p className="mt-1 text-xl font-semibold text-white">{loReviewMode === "monthly" ? "April Review" : "YTD Jan-Apr"}</p>
                 </div>
                 <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/8 p-4">
-                  <p className="text-xs uppercase tracking-[0.16em] text-emerald-200/70">Revenue</p>
+                  <p className="text-xs uppercase tracking-[0.16em] text-emerald-200/70">Due to DHL</p>
                   <p className="mt-1 text-xl font-semibold text-emerald-100">{fmt(activeLoPnlTotals.revenue)}</p>
                 </div>
                 <div className={`rounded-2xl border p-4 ${activeLoPnlTotals.contribution >= 0 ? "border-emerald-400/20 bg-emerald-400/8" : "border-red-400/20 bg-red-400/8"}`}>
@@ -823,8 +850,8 @@ export default function FinancePage() {
                   <tr>
                     <th className="px-4 py-3 font-medium">LO</th>
                     <th className="px-4 py-3 text-right font-medium">Deals</th>
-                    <th className="px-4 py-3 text-right font-medium">Revenue</th>
-                    <th className="px-4 py-3 text-right font-medium">Comp</th>
+                    <th className="px-4 py-3 text-right font-medium">Due to DHL</th>
+                    <th className="px-4 py-3 text-right font-medium">Due LO/JLO</th>
                     <th className="px-4 py-3 text-right font-medium">Reimb.</th>
                     <th className="px-4 py-3 text-right font-medium">Credit Cost</th>
                     <th className="px-4 py-3 text-right font-medium">Net Leakage</th>
@@ -863,7 +890,7 @@ export default function FinancePage() {
                   </div>
                   <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                     <div className="rounded-xl border border-white/8 bg-black/20 p-3">
-                      <p className="text-white/35">Revenue / deal</p>
+                      <p className="text-white/35">DHL / deal</p>
                       <p className="mt-1 font-semibold text-white/80">{fmt(lo.revenuePerDeal)}</p>
                     </div>
                     <div className="rounded-xl border border-white/8 bg-black/20 p-3">
