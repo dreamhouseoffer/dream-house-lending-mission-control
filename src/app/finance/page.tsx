@@ -178,16 +178,16 @@ const aprilCfoFindings = [
 ];
 
 const advantagePullMonths = [
-  { month: "Jan", hard: 3546.0, soft: null, total: 3546.0, note: "Jan soft PDF was blank/unreadable" },
+  { month: "Jan", hard: 3546.0, soft: 2530.5, total: 6076.5, note: "Hard + soft invoices loaded" },
   { month: "Feb", hard: 3686.0, soft: 2695.0, total: 6381.0, note: "Hard + soft invoices loaded" },
   { month: "Mar", hard: 3393.4, soft: 4021.0, total: 7414.4, note: "Hard + soft invoices loaded" },
   { month: "Apr", hard: 4178.5, soft: 2943.5, total: 7122.0, note: "Hard + soft invoices loaded" },
 ];
 
 const advantagePullByPerson = [
-  { name: "Emmanuel Duran", knownCost: 12989.4, note: "Largest known pull cost Jan-Apr" },
-  { name: "Alfonso Garza Jr", knownCost: 7740.0, note: "Owner/self files" },
-  { name: "Yanelit Trujillo", knownCost: 3433.0, note: "Needs reimbursement match" },
+  { name: "Emmanuel Duran", knownCost: 14002.9, note: "Largest known pull cost Jan-Apr" },
+  { name: "Alfonso Garza Jr", knownCost: 8498.0, note: "Owner/self files" },
+  { name: "Yanelit Trujillo", knownCost: 4192.0, note: "Needs reimbursement match" },
   { name: "Daisy Cantu", knownCost: 266.0, note: "Prior/other user" },
   { name: "Claudia Melendez", knownCost: 31.0, note: "Small April charge" },
 ];
@@ -579,7 +579,7 @@ export default function FinancePage() {
                 <div className="rounded-2xl border border-orange-400/20 bg-orange-400/8 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-orange-200/70">Known vendor cost loaded</p>
                   <p className="mt-2 text-3xl font-semibold text-orange-100">{fmt(knownAdvantagePullCost, 2)}</p>
-                  <p className="mt-2 text-sm text-orange-100/70">Excludes Jan soft until a clean invoice is uploaded. Net leakage = Advantage cost minus pass-through reimbursements collected.</p>
+                  <p className="mt-2 text-sm text-orange-100/70">All Jan-Apr hard and soft invoices are now loaded. Net leakage = Advantage cost minus pass-through reimbursements collected.</p>
                 </div>
                 <div className="grid gap-2">
                   {advantagePullByPerson.map((person) => (
