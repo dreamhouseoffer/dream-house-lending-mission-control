@@ -39,34 +39,36 @@ const loPerformance = [
 const loPnlRows = [
   {
     name: "Emmanuel Duran",
-    revenue: 23952,
-    directComp: 65600,
-    grossContribution: -41648,
-    retention: 36.5,
-    deals: 11,
-    revenuePerDeal: 2177,
-    status: "CFO red flag",
-    action: "Needs true file-level P&L: closed revenue, comp split, credit pulls, processor time, and marketing source. Current model says comp exceeds revenue by $41.6K.",
-    tone: "red" as Tone,
+    revenue: 29955.43,
+    directComp: 19633.48,
+    grossContribution: 9516.75,
+    retention: 34.9,
+    deals: 5,
+    revenuePerDeal: 5991,
+    reportFees: 933,
+    status: "Profitable before overhead, split is rich",
+    action: "April file-level P&L: 5 primary funded files plus 1 JLO split. Dream House retained $10,449.75 before subtracting $933 in pass-through/credit-report fees. Net before allocated overhead: $9,516.75. Good volume, but DH only keeps 34.9% of broker comp.",
+    tone: "amber" as Tone,
   },
   {
     name: "Yanelit Trujillo",
-    revenue: 20491,
-    directComp: 36700,
-    grossContribution: -16209,
-    retention: 55.8,
-    deals: 4,
-    revenuePerDeal: 5123,
-    status: "Watch split / volume",
-    action: "Higher revenue per deal, but low volume and comp load still put the book negative. Need more funded files or tighter split before adding support costs.",
-    tone: "amber" as Tone,
+    revenue: 8063.73,
+    directComp: 3628.68,
+    grossContribution: 4303.05,
+    retention: 55.0,
+    deals: 1,
+    revenuePerDeal: 8064,
+    reportFees: 132,
+    status: "Clean split, needs more volume",
+    action: "April file-level P&L: 1 primary funded file. Dream House retained $4,435.05 before subtracting $132 in pass-through/credit-report fees. Net before allocated overhead: $4,303.05. Split is healthier than Emmanuel, but one funded file is not enough to judge capacity.",
+    tone: "green" as Tone,
   },
 ];
 
 const loPnlNeeds = [
-  "Revenue by funded file and LO, not just company deposits.",
-  "LO comp paid/accrued by file and month.",
-  "Credit report pulls/vendor costs by borrower/file/LO — Advantage invoices are not LO-coded yet.",
+  "Revenue by funded file and LO, not just company deposits. April workbook now supplies this for funded files.",
+  "LO comp paid/accrued by file and month. April workbook now supplies Due to LO / Due to JLO.",
+  "Credit report pulls/vendor costs by borrower/file/LO — use workbook pass-through fees for funded files, then match Advantage invoices for fallout/non-funded pulls.",
   "Lead source cost by LO: realtor, KW, self-gen, paid, repeat/referral.",
   "Processor/admin allocation: Claudia/Nataly time or flat cost per active file.",
   "Fallout count: credit pulls/apps/docs reviewed that never funded.",
@@ -611,7 +613,7 @@ export default function FinancePage() {
                     </div>
                     <span className={`rounded-full border px-2.5 py-1 text-xs ${toneMap[lo.tone]}`}>{lo.retention.toFixed(1)}% retention</span>
                   </div>
-                  <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                  <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
                     <div className="rounded-xl border border-white/8 bg-black/20 p-3">
                       <p className="text-white/35">Revenue</p>
                       <p className="mt-1 font-semibold text-emerald-300">{fmt(lo.revenue)}</p>
@@ -623,6 +625,10 @@ export default function FinancePage() {
                     <div className="rounded-xl border border-white/8 bg-black/20 p-3">
                       <p className="text-white/35">Contribution</p>
                       <p className={`mt-1 font-semibold ${lo.grossContribution >= 0 ? "text-emerald-300" : "text-red-300"}`}>{fmt(lo.grossContribution)}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-black/20 p-3">
+                      <p className="text-white/35">Report fees</p>
+                      <p className="mt-1 font-semibold text-orange-200">{fmt(lo.reportFees)}</p>
                     </div>
                     <div className="rounded-xl border border-white/8 bg-black/20 p-3">
                       <p className="text-white/35">Rev / deal</p>
