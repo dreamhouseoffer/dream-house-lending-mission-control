@@ -36,6 +36,42 @@ const loPerformance = [
   { name: "Alex Tucker", deals: 1, ytdDeals: 1, revenueGenerated: 3062, comp: 11300, retention: 27, avgDeal: 11300, tone: "red" as Tone, note: "Worst margin" },
 ];
 
+const loPnlRows = [
+  {
+    name: "Emmanuel Duran",
+    revenue: 23952,
+    directComp: 65600,
+    grossContribution: -41648,
+    retention: 36.5,
+    deals: 11,
+    revenuePerDeal: 2177,
+    status: "CFO red flag",
+    action: "Needs true file-level P&L: closed revenue, comp split, credit pulls, processor time, and marketing source. Current model says comp exceeds revenue by $41.6K.",
+    tone: "red" as Tone,
+  },
+  {
+    name: "Yanelit Trujillo",
+    revenue: 20491,
+    directComp: 36700,
+    grossContribution: -16209,
+    retention: 55.8,
+    deals: 4,
+    revenuePerDeal: 5123,
+    status: "Watch split / volume",
+    action: "Higher revenue per deal, but low volume and comp load still put the book negative. Need more funded files or tighter split before adding support costs.",
+    tone: "amber" as Tone,
+  },
+];
+
+const loPnlNeeds = [
+  "Revenue by funded file and LO, not just company deposits.",
+  "LO comp paid/accrued by file and month.",
+  "Credit report pulls/vendor costs by borrower/file/LO — Advantage invoices are not LO-coded yet.",
+  "Lead source cost by LO: realtor, KW, self-gen, paid, repeat/referral.",
+  "Processor/admin allocation: Claudia/Nataly time or flat cost per active file.",
+  "Fallout count: credit pulls/apps/docs reviewed that never funded.",
+];
+
 const companyExpenseCategories = [
   { name: "Payroll", value: 9800, color: "#34d399" },
   { name: "Office", value: 2313, color: "#60a5fa" },
@@ -563,6 +599,52 @@ export default function FinancePage() {
               </div>
             ))}
           </div>
+
+          <SectionCard title="Loan Officer P&L" subtitle="Unit economics by LO — this is where we decide who is profitable, who needs coaching, and who gets more resources">
+            <div className="grid gap-4 xl:grid-cols-2">
+              {loPnlRows.map((lo) => (
+                <div key={lo.name} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">{lo.name}</h3>
+                      <p className="mt-1 text-sm text-white/45">{lo.status}</p>
+                    </div>
+                    <span className={`rounded-full border px-2.5 py-1 text-xs ${toneMap[lo.tone]}`}>{lo.retention.toFixed(1)}% retention</span>
+                  </div>
+                  <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+                    <div className="rounded-xl border border-white/8 bg-black/20 p-3">
+                      <p className="text-white/35">Revenue</p>
+                      <p className="mt-1 font-semibold text-emerald-300">{fmt(lo.revenue)}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-black/20 p-3">
+                      <p className="text-white/35">Direct comp</p>
+                      <p className="mt-1 font-semibold text-white/80">{fmt(lo.directComp)}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-black/20 p-3">
+                      <p className="text-white/35">Contribution</p>
+                      <p className={`mt-1 font-semibold ${lo.grossContribution >= 0 ? "text-emerald-300" : "text-red-300"}`}>{fmt(lo.grossContribution)}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-black/20 p-3">
+                      <p className="text-white/35">Rev / deal</p>
+                      <p className="mt-1 font-semibold text-white/80">{fmt(lo.revenuePerDeal)}</p>
+                    </div>
+                  </div>
+                  <div className={`mt-4 rounded-xl border px-4 py-3 text-sm leading-relaxed ${toneMap[lo.tone]}`}>{lo.action}</div>
+                </div>
+              ))}
+            </div>
+            <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/8 p-4">
+              <p className="text-sm font-semibold text-blue-200">To make this a real LO P&L, Mission Control needs:</p>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {loPnlNeeds.map((item) => (
+                  <div key={item} className="flex gap-2 text-sm text-white/70">
+                    <span className="mt-1 size-1.5 shrink-0 rounded-full bg-blue-300" />
+                    <span>{item}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </SectionCard>
 
           <div className="grid gap-6 xl:grid-cols-2">
             <SectionCard title="Product Mix" subtitle="Funded mix by loan type from Monday.com data">
