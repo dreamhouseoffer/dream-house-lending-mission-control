@@ -177,6 +177,23 @@ const aprilCfoFindings = [
   "Advantage report invoices total $7,122.00 and show $0 due, but this needs categorization by LO/person for true cost-to-originate.",
 ];
 
+const advantagePullMonths = [
+  { month: "Jan", hard: 3546.0, soft: null, total: 3546.0, note: "Jan soft PDF was blank/unreadable" },
+  { month: "Feb", hard: 3686.0, soft: 2695.0, total: 6381.0, note: "Hard + soft invoices loaded" },
+  { month: "Mar", hard: null, soft: 4021.0, total: 4021.0, note: "Missing March hard invoice" },
+  { month: "Apr", hard: 4178.5, soft: 2943.5, total: 7122.0, note: "Hard + soft invoices loaded" },
+];
+
+const advantagePullByPerson = [
+  { name: "Emmanuel Duran", knownCost: 11391.0, note: "Largest known pull cost Jan-Apr" },
+  { name: "Alfonso Garza Jr", knownCost: 6258.0, note: "Owner/self files" },
+  { name: "Yanelit Trujillo", knownCost: 3121.0, note: "Needs reimbursement match" },
+  { name: "Daisy Cantu", knownCost: 266.0, note: "Prior/other user" },
+  { name: "Claudia Melendez", knownCost: 31.0, note: "Small April charge" },
+];
+
+const knownAdvantagePullCost = advantagePullMonths.reduce((sum, row) => sum + row.total, 0);
+
 const aprilCloseChecklist = [
   { owner: "Fonz", task: "Confirm funded April files + expected gross comp per file", status: "Needed before CFO signs off" },
   { owner: "CFO", task: "Separate revenue received vs April commissions still pending", status: "Month-close item" },
@@ -530,6 +547,54 @@ export default function FinancePage() {
               </div>
             </SectionCard>
           </div>
+
+          <SectionCard title="Advantage Pull Cost — Jan to Apr" subtitle="Vendor cost by invoice; pass-through fees are reimbursements, not expenses">
+            <div className="grid gap-4 xl:grid-cols-[1fr_0.95fr]">
+              <div className="overflow-hidden rounded-2xl border border-white/10">
+                <table className="w-full text-sm">
+                  <thead className="bg-white/[0.03] text-left text-xs uppercase tracking-[0.18em] text-white/40">
+                    <tr>
+                      <th className="px-4 py-3 font-medium">Month</th>
+                      <th className="px-4 py-3 text-right font-medium">Hard</th>
+                      <th className="px-4 py-3 text-right font-medium">Soft</th>
+                      <th className="px-4 py-3 text-right font-medium">Known Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {advantagePullMonths.map((row, i) => (
+                      <tr key={row.month} className={i % 2 ? "bg-white/[0.02]" : "bg-transparent"}>
+                        <td className="px-4 py-3 text-white">
+                          <div>{row.month}</div>
+                          <div className="mt-1 text-xs text-white/35">{row.note}</div>
+                        </td>
+                        <td className="px-4 py-3 text-right text-white/70">{row.hard === null ? "missing" : fmt(row.hard)}</td>
+                        <td className="px-4 py-3 text-right text-white/70">{row.soft === null ? "missing" : fmt(row.soft)}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-orange-200">{fmt(row.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-orange-400/20 bg-orange-400/8 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-orange-200/70">Known vendor cost loaded</p>
+                  <p className="mt-2 text-3xl font-semibold text-orange-100">{fmt(knownAdvantagePullCost, 2)}</p>
+                  <p className="mt-2 text-sm text-orange-100/70">Excludes Jan soft and March hard until clean invoices are uploaded. Net leakage = Advantage cost minus pass-through reimbursements collected.</p>
+                </div>
+                <div className="grid gap-2">
+                  {advantagePullByPerson.map((person) => (
+                    <div key={person.name} className="flex items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.02] px-4 py-3 text-sm">
+                      <div>
+                        <p className="font-medium text-white">{person.name}</p>
+                        <p className="text-xs text-white/35">{person.note}</p>
+                      </div>
+                      <p className="font-semibold text-white/80">{fmt(person.knownCost)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </SectionCard>
 
           <div className="grid gap-6 xl:grid-cols-[1.25fr_0.95fr]">
             <SectionCard title="Revenue Trend" subtitle="Monthly revenue to Dream House with breakeven reference">
