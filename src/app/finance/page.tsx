@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 
 type ViewMode = "company" | "personal";
+type LoReviewMode = "monthly" | "ytd";
 type Tone = "green" | "amber" | "red" | "slate";
 
 const fmt = (n: number, digits = 0) =>
@@ -63,15 +64,6 @@ const loPnlRows = [
     action: "April file-level P&L: 1 primary funded file. Dream House retained $4,435.05 before allocated overhead. The $132 in pass-through fees is reimbursement collected for credit pulls, not a cost. Split is healthier than Emmanuel, but one funded file is not enough to judge capacity.",
     tone: "green" as Tone,
   },
-];
-
-const loPnlNeeds = [
-  "Revenue by funded file and LO, not just company deposits. April workbook now supplies this for funded files.",
-  "LO comp paid/accrued by file and month. April workbook now supplies Due to LO / Due to JLO.",
-  "Credit report pulls/vendor costs by borrower/file/LO — pass-through fees are reimbursements, so match Advantage invoice costs against reimbursements to find net leakage.",
-  "Lead source cost by LO: realtor, KW, self-gen, paid, repeat/referral.",
-  "Processor/admin allocation: Claudia/Nataly time or flat cost per active file.",
-  "Fallout count: credit pulls/apps/docs reviewed that never funded.",
 ];
 
 const companyExpenseCategories = [
@@ -196,6 +188,93 @@ const advantagePullPnlRows = advantagePullByPerson.map((person) => ({
   ...person,
   netLeakage: person.knownCost - person.reimbursements,
 }));
+
+const creditLeakageByName = new Map(advantagePullPnlRows.map((person) => [person.name, person.netLeakage]));
+const ytdLoCreditLeakage = {
+  alfonso: creditLeakageByName.get("Alfonso Garza Jr") ?? 0,
+  emmanuel: creditLeakageByName.get("Emmanuel Duran / Manny") ?? 0,
+  yanelit: creditLeakageByName.get("Yanelit Trujillo") ?? 0,
+  alex: 0,
+};
+
+const monthlyLoPnlRows = loPnlRows.map((lo) => ({
+  period: "April",
+  name: lo.name === "Emmanuel Duran" ? "Emmanuel Duran / Manny" : lo.name,
+  deals: lo.deals,
+  revenue: lo.revenue,
+  directComp: lo.directComp,
+  reimbursements: lo.reimbursements,
+  creditCost: 0,
+  netCreditLeakage: 0,
+  contribution: lo.grossContribution,
+  retention: lo.retention,
+  revenuePerDeal: lo.revenuePerDeal,
+  tone: lo.tone,
+  note: `${lo.status}. April funded-file workbook loaded; monthly credit cost by person still needs exact April Advantage match.`,
+}));
+
+const ytdLoPnlRows = [
+  {
+    period: "YTD Jan-Apr",
+    name: "Alfonso Garza",
+    deals: 17,
+    revenue: 93973,
+    directComp: 107700,
+    reimbursements: 0,
+    creditCost: 8498,
+    netCreditLeakage: ytdLoCreditLeakage.alfonso,
+    contribution: 93973 - 107700 - ytdLoCreditLeakage.alfonso,
+    retention: 87,
+    revenuePerDeal: 6332,
+    tone: "amber" as Tone,
+    note: "Starter YTD view. Reimbursements not loaded yet, so leakage may be overstated.",
+  },
+  {
+    period: "YTD Jan-Apr",
+    name: "Emmanuel Duran / Manny",
+    deals: 11,
+    revenue: 23952,
+    directComp: 65600,
+    reimbursements: 933,
+    creditCost: 14002.9,
+    netCreditLeakage: ytdLoCreditLeakage.emmanuel,
+    contribution: 23952 - 65600 - ytdLoCreditLeakage.emmanuel,
+    retention: 36,
+    revenuePerDeal: 5964,
+    tone: "red" as Tone,
+    note: "Biggest red flag: high comp plus largest known credit leakage. Validate revenue source before final call.",
+  },
+  {
+    period: "YTD Jan-Apr",
+    name: "Yanelit Trujillo",
+    deals: 4,
+    revenue: 20491,
+    directComp: 36700,
+    reimbursements: 132,
+    creditCost: 4192,
+    netCreditLeakage: ytdLoCreditLeakage.yanelit,
+    contribution: 20491 - 36700 - ytdLoCreditLeakage.yanelit,
+    retention: 56,
+    revenuePerDeal: 9188,
+    tone: "red" as Tone,
+    note: "Needs more volume and reimbursement matching; one clean April file is not enough to carry YTD economics.",
+  },
+  {
+    period: "YTD Jan-Apr",
+    name: "Alex Tucker",
+    deals: 1,
+    revenue: 3062,
+    directComp: 11300,
+    reimbursements: 0,
+    creditCost: 0,
+    netCreditLeakage: ytdLoCreditLeakage.alex,
+    contribution: 3062 - 11300 - ytdLoCreditLeakage.alex,
+    retention: 27,
+    revenuePerDeal: 11300,
+    tone: "red" as Tone,
+    note: "Low volume and bad margin in current loaded data.",
+  },
+];
 
 const knownAdvantagePullCost = advantagePullMonths.reduce((sum, row) => sum + row.total, 0);
 const loadedPassThroughReimbursements = advantagePullPnlRows.reduce((sum, row) => sum + row.reimbursements, 0);
@@ -450,7 +529,21 @@ function TrendCard({ title, rows, lowerIsBetter = false }: { title: string; rows
 
 export default function FinancePage() {
   const [view, setView] = useState<ViewMode>("company");
+  const [loReviewMode, setLoReviewMode] = useState<LoReviewMode>("monthly");
   const currentViewLabel = useMemo(() => (view === "company" ? "Company CFO View" : "Personal CFO View"), [view]);
+  const activeLoPnlRows = loReviewMode === "monthly" ? monthlyLoPnlRows : ytdLoPnlRows;
+  const activeLoPnlTotals = activeLoPnlRows.reduce(
+    (totals, row) => ({
+      deals: totals.deals + row.deals,
+      revenue: totals.revenue + row.revenue,
+      directComp: totals.directComp + row.directComp,
+      reimbursements: totals.reimbursements + row.reimbursements,
+      creditCost: totals.creditCost + row.creditCost,
+      netCreditLeakage: totals.netCreditLeakage + row.netCreditLeakage,
+      contribution: totals.contribution + row.contribution,
+    }),
+    { deals: 0, revenue: 0, directComp: 0, reimbursements: 0, creditCost: 0, netCreditLeakage: 0, contribution: 0 },
+  );
 
   return (
     <div className="mx-auto max-w-7xl space-y-6 p-4 sm:p-6 lg:p-8">
@@ -698,53 +791,109 @@ export default function FinancePage() {
             ))}
           </div>
 
-          <SectionCard title="Loan Officer P&L" subtitle="Unit economics by LO — this is where we decide who is profitable, who needs coaching, and who gets more resources">
-            <div className="grid gap-4 xl:grid-cols-2">
-              {loPnlRows.map((lo) => (
-                <div key={lo.name} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
+          <SectionCard title="Loan Officer P&L Review" subtitle="Monthly review and YTD review by LO — revenue, comp, reimbursements, credit leakage, and contribution">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="grid gap-3 sm:grid-cols-3 lg:flex-1">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-white/35">{loReviewMode === "monthly" ? "Month" : "Period"}</p>
+                  <p className="mt-1 text-xl font-semibold text-white">{loReviewMode === "monthly" ? "April Review" : "YTD Jan-Apr"}</p>
+                </div>
+                <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/8 p-4">
+                  <p className="text-xs uppercase tracking-[0.16em] text-emerald-200/70">Revenue</p>
+                  <p className="mt-1 text-xl font-semibold text-emerald-100">{fmt(activeLoPnlTotals.revenue)}</p>
+                </div>
+                <div className={`rounded-2xl border p-4 ${activeLoPnlTotals.contribution >= 0 ? "border-emerald-400/20 bg-emerald-400/8" : "border-red-400/20 bg-red-400/8"}`}>
+                  <p className={`text-xs uppercase tracking-[0.16em] ${activeLoPnlTotals.contribution >= 0 ? "text-emerald-200/70" : "text-red-200/70"}`}>Contribution after leakage</p>
+                  <p className={`mt-1 text-xl font-semibold ${activeLoPnlTotals.contribution >= 0 ? "text-emerald-100" : "text-red-100"}`}>{fmt(activeLoPnlTotals.contribution)}</p>
+                </div>
+              </div>
+              <div className="inline-flex shrink-0 rounded-2xl border border-white/10 bg-white/[0.03] p-1">
+                {([
+                  ["monthly", "Monthly"],
+                  ["ytd", "YTD"],
+                ] as const).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setLoReviewMode(key)}
+                    className={`rounded-xl px-4 py-2 text-sm font-medium transition ${loReviewMode === key ? "bg-white text-slate-950 shadow-sm" : "text-white/55 hover:text-white"}`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-5 overflow-hidden rounded-2xl border border-white/10">
+              <table className="w-full text-sm">
+                <thead className="bg-white/[0.03] text-left text-xs uppercase tracking-[0.18em] text-white/40">
+                  <tr>
+                    <th className="px-4 py-3 font-medium">LO</th>
+                    <th className="px-4 py-3 text-right font-medium">Deals</th>
+                    <th className="px-4 py-3 text-right font-medium">Revenue</th>
+                    <th className="px-4 py-3 text-right font-medium">Comp</th>
+                    <th className="px-4 py-3 text-right font-medium">Reimb.</th>
+                    <th className="px-4 py-3 text-right font-medium">Credit Cost</th>
+                    <th className="px-4 py-3 text-right font-medium">Net Leakage</th>
+                    <th className="px-4 py-3 text-right font-medium">Contribution</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activeLoPnlRows.map((lo, i) => (
+                    <tr key={`${loReviewMode}-${lo.name}`} className={i % 2 ? "bg-white/[0.02]" : "bg-transparent"}>
+                      <td className="px-4 py-3 text-white">
+                        <div className="font-medium">{lo.name}</div>
+                        <div className="mt-1 text-xs text-white/35">{lo.period} • {lo.note}</div>
+                      </td>
+                      <td className="px-4 py-3 text-right text-white/70">{lo.deals}</td>
+                      <td className="px-4 py-3 text-right text-emerald-300">{fmt(lo.revenue)}</td>
+                      <td className="px-4 py-3 text-right text-white/70">{fmt(lo.directComp)}</td>
+                      <td className="px-4 py-3 text-right text-emerald-200">{fmt(lo.reimbursements)}</td>
+                      <td className="px-4 py-3 text-right text-orange-200">{lo.creditCost ? fmt(lo.creditCost) : "pending"}</td>
+                      <td className="px-4 py-3 text-right text-red-200">{lo.netCreditLeakage ? fmt(lo.netCreditLeakage) : loReviewMode === "monthly" ? "pending" : fmt(0)}</td>
+                      <td className={`px-4 py-3 text-right font-semibold ${lo.contribution >= 0 ? "text-emerald-300" : "text-red-300"}`}>{fmt(lo.contribution)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-5 grid gap-4 xl:grid-cols-2">
+              {activeLoPnlRows.map((lo) => (
+                <div key={`card-${loReviewMode}-${lo.name}`} className="rounded-2xl border border-white/10 bg-white/[0.025] p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <h3 className="text-lg font-semibold text-white">{lo.name}</h3>
-                      <p className="mt-1 text-sm text-white/45">{lo.status}</p>
+                      <p className="mt-1 text-sm text-white/45">{lo.period}</p>
                     </div>
                     <span className={`rounded-full border px-2.5 py-1 text-xs ${toneMap[lo.tone]}`}>{lo.retention.toFixed(1)}% retention</span>
                   </div>
-                  <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-5">
+                  <div className="mt-5 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
                     <div className="rounded-xl border border-white/8 bg-black/20 p-3">
-                      <p className="text-white/35">Revenue</p>
-                      <p className="mt-1 font-semibold text-emerald-300">{fmt(lo.revenue)}</p>
+                      <p className="text-white/35">Revenue / deal</p>
+                      <p className="mt-1 font-semibold text-white/80">{fmt(lo.revenuePerDeal)}</p>
                     </div>
                     <div className="rounded-xl border border-white/8 bg-black/20 p-3">
-                      <p className="text-white/35">Direct comp</p>
-                      <p className="mt-1 font-semibold text-white/80">{fmt(lo.directComp)}</p>
+                      <p className="text-white/35">Comp ratio</p>
+                      <p className="mt-1 font-semibold text-white/80">{pct(lo.revenue ? (lo.directComp / lo.revenue) * 100 : 0)}</p>
+                    </div>
+                    <div className="rounded-xl border border-white/8 bg-black/20 p-3">
+                      <p className="text-white/35">Credit leakage</p>
+                      <p className="mt-1 font-semibold text-red-200">{lo.netCreditLeakage ? fmt(lo.netCreditLeakage) : "pending"}</p>
                     </div>
                     <div className="rounded-xl border border-white/8 bg-black/20 p-3">
                       <p className="text-white/35">Contribution</p>
-                      <p className={`mt-1 font-semibold ${lo.grossContribution >= 0 ? "text-emerald-300" : "text-red-300"}`}>{fmt(lo.grossContribution)}</p>
-                    </div>
-                    <div className="rounded-xl border border-white/8 bg-black/20 p-3">
-                      <p className="text-white/35">Reimbursements</p>
-                      <p className="mt-1 font-semibold text-orange-200">{fmt(lo.reimbursements)}</p>
-                    </div>
-                    <div className="rounded-xl border border-white/8 bg-black/20 p-3">
-                      <p className="text-white/35">Rev / deal</p>
-                      <p className="mt-1 font-semibold text-white/80">{fmt(lo.revenuePerDeal)}</p>
+                      <p className={`mt-1 font-semibold ${lo.contribution >= 0 ? "text-emerald-300" : "text-red-300"}`}>{fmt(lo.contribution)}</p>
                     </div>
                   </div>
-                  <div className={`mt-4 rounded-xl border px-4 py-3 text-sm leading-relaxed ${toneMap[lo.tone]}`}>{lo.action}</div>
+                  <div className={`mt-4 rounded-xl border px-4 py-3 text-sm leading-relaxed ${toneMap[lo.tone]}`}>{lo.note}</div>
                 </div>
               ))}
             </div>
+
             <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/8 p-4">
-              <p className="text-sm font-semibold text-blue-200">To make this a real LO P&L, Mission Control needs:</p>
-              <div className="mt-3 grid gap-2 md:grid-cols-2">
-                {loPnlNeeds.map((item) => (
-                  <div key={item} className="flex gap-2 text-sm text-white/70">
-                    <span className="mt-1 size-1.5 shrink-0 rounded-full bg-blue-300" />
-                    <span>{item}</span>
-                  </div>
-                ))}
-              </div>
+              <p className="text-sm font-semibold text-blue-200">Data rule:</p>
+              <p className="mt-2 text-sm text-white/70">Monthly LO P&L uses loaded funded-file workbook data. YTD LO P&L uses loaded YTD LO summary plus Jan-Apr Advantage pulls. Final accuracy requires Jan-Mar funded-file pass-through reimbursements and file-level LO revenue validation.</p>
             </div>
           </SectionCard>
 
