@@ -210,7 +210,7 @@ const monthlyLoPnlRows = loPnlRows.map((lo) => ({
   retention: lo.retention,
   revenuePerDeal: lo.revenuePerDeal,
   tone: lo.tone,
-  note: `${lo.status}. April funded-file revenue/LO comp comes from Monday.com/workbook data; credit leakage comes from user-attributed credit-report pulls minus reimbursements.`,
+  note: `${lo.status}. Monday.com broker-check math: gross broker check includes comp plus reimbursements; use Due to LO and Due to Dream House Lending for the split. Credit leakage comes from user-attributed credit-report pulls minus reimbursements.`,
 }));
 
 const ytdLoPnlRows = [
@@ -227,7 +227,7 @@ const ytdLoPnlRows = [
     retention: 87,
     revenuePerDeal: 6332,
     tone: "amber" as Tone,
-    note: "YTD view from Monday.com funded-file economics plus user-attributed credit-report pulls. Reimbursements reduce leakage when loaded.",
+    note: "YTD view should come from Monday.com Broker Check, LO, Due to LO, and Due to Dream House Lending fields plus user-attributed credit-report pulls. Reimbursements reduce leakage when loaded.",
   },
   {
     period: "YTD Jan-Apr",
@@ -242,7 +242,7 @@ const ytdLoPnlRows = [
     retention: 36,
     revenuePerDeal: 5964,
     tone: "red" as Tone,
-    note: "Biggest red flag in current YTD view: high comp plus largest known credit leakage. Monday.com is the revenue/LO source; credit reports are the pull-cost source.",
+    note: "Biggest red flag in current YTD view: high comp plus largest known credit leakage. Monday.com Broker Check/Due to LO/Due to DHL is the revenue split source; credit reports are the pull-cost source.",
   },
   {
     period: "YTD Jan-Apr",
@@ -886,7 +886,7 @@ export default function FinancePage() {
 
             <div className="mt-5 rounded-2xl border border-blue-400/20 bg-blue-400/8 p-4">
               <p className="text-sm font-semibold text-blue-200">Data rule:</p>
-              <p className="mt-2 text-sm text-white/70">Monthly and YTD LO P&L use Monday.com funded-file revenue/LO attribution. Credit leakage is credit-report pulls by user minus pass-through reimbursements. No processor allocation or fallout-count layer in this Mission Control view.</p>
+              <p className="mt-2 text-sm text-white/70">Monday.com is the source of truth: Broker Check includes comp plus reimbursements; use LO, Due to LO, and Due to Dream House Lending to calculate real LO contribution. Credit leakage is credit-report pulls by user minus pass-through reimbursements. No processor allocation or fallout-count layer in this Mission Control view.</p>
             </div>
           </SectionCard>
 
