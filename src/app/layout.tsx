@@ -11,8 +11,19 @@ const geistSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Mission Control 🦞",
-  description: "Command center for Fonz & Jarvis",
+  title: "Hermi Dashboard",
+  description: "Dream House Lending Mission Control dashboard for Fonz.",
+  applicationName: "Hermi Dashboard",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Hermi",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: "/icons/hermi-icon.svg",
+    apple: "/icons/hermi-icon.svg",
+  },
 };
 
 export default function RootLayout({
