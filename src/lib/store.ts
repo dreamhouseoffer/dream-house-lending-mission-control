@@ -66,19 +66,67 @@ export const getTeam = (): TeamMember[] => defaultTeam;
 // ============ DEFAULTS ============
 
 const defaultTasks: Task[] = [
-  { id: "1", title: "Set up Mission Control UI", description: "Build the core dashboard with all pages", assignee: "atlas", priority: "high", status: "in_progress", createdAt: new Date().toISOString() },
-  { id: "2", title: "Configure loan pipeline tracker", description: "Build intake form and status pipeline for mortgage leads", assignee: "atlas", priority: "high", status: "backlog", createdAt: new Date().toISOString() },
-  { id: "3", title: "Review CRM schema design", description: "Check referral partner and client data models", assignee: "fonz", priority: "medium", status: "review", createdAt: new Date().toISOString() },
-  { id: "4", title: "Set up daily briefing cron", description: "Automate morning summary generation", assignee: "atlas", priority: "medium", status: "backlog", createdAt: new Date().toISOString() },
-  { id: "5", title: "Research tax lien counties", description: "Identify top 5 counties for tax lien investing", assignee: "fonz", priority: "low", status: "backlog", createdAt: new Date().toISOString() },
-  { id: "6", title: "Deploy Mission Control v1", description: "Push to production after testing", assignee: "atlas", priority: "high", status: "backlog", createdAt: new Date().toISOString() },
+  {
+    id: "mc1",
+    title: "Push every active loan into a clear next step",
+    description: "Hermi Ops should turn the active pipeline into a short owner-by-owner push list: borrower/file, blocker, owner, next touch, and revenue risk.",
+    nextAction: "Start with loans closing or locks expiring this week.",
+    assignee: "hermi_ops",
+    category: "loans",
+    priority: "high",
+    status: "ready",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "mc2",
+    title: "Weekly CFO closeout orders",
+    description: "Review Finance tabs for LO P&L, credit leakage, reimbursements, expenses, and what needs Monday.com/vendor cleanup.",
+    nextAction: "Open /finance and write 3 CFO orders only.",
+    assignee: "fonz",
+    category: "finance",
+    priority: "high",
+    status: "in_progress",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "mc3",
+    title: "Train Ask Hermi on the next loan SOP",
+    description: "Upload or paste one high-value training so Claudia/Nataly can ask how Fonz would handle it later.",
+    nextAction: "Prioritize soft pull, income review, AUS, or ready-to-sell file review.",
+    assignee: "hermi_dev",
+    category: "training",
+    priority: "medium",
+    status: "triage",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "mc4",
+    title: "KW lead source operating rhythm",
+    description: "Define the one lead source rhythm worth executing this week instead of adding a new side play.",
+    nextAction: "Assign Claudia/Nataly follow-up blocks and define a daily scorecard.",
+    assignee: "claudia",
+    category: "lead_gen",
+    priority: "high",
+    status: "ready",
+    createdAt: new Date().toISOString(),
+  },
+  {
+    id: "mc5",
+    title: "Create Hermi Ops recurring triage loop",
+    description: "Set up the Hermes-side cron/profile workflow later so triage tasks are expanded automatically. UI is now ready; backend automation is the next move.",
+    nextAction: "Create Hermi Ops profile + 15 minute Kanban triage cron once dashboard API/storage is connected.",
+    assignee: "hermi_dev",
+    category: "dev",
+    priority: "medium",
+    status: "blocked",
+    createdAt: new Date().toISOString(),
+  },
 ];
 
 const defaultActivity: ActivityEvent[] = [
-  { id: "a1", text: "Jarvis initialized Mission Control", timestamp: new Date().toISOString(), type: "system" },
-  { id: "a2", text: "Task created: Set up Mission Control UI", timestamp: new Date().toISOString(), type: "task" },
-  { id: "a3", text: "Jarvis began building dashboard components", timestamp: new Date().toISOString(), type: "agent" },
-  { id: "a4", text: "Fonz reviewed CRM schema design", timestamp: new Date().toISOString(), type: "task" },
+  { id: "a1", text: "Hermi Ops board initialized inside Mission Control", timestamp: new Date().toISOString(), type: "system" },
+  { id: "a2", text: "Alex Finn workflow translated into DHL: Triage → Ready → In Progress → Blocked → Done", timestamp: new Date().toISOString(), type: "agent" },
+  { id: "a3", text: "Rule added: no client-facing actions without human approval", timestamp: new Date().toISOString(), type: "system" },
 ];
 
 const defaultSchedule: ScheduledItem[] = [

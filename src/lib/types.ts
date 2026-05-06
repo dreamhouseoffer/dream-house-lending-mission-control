@@ -1,6 +1,7 @@
 export type Priority = "high" | "medium" | "low";
-export type TaskStatus = "backlog" | "in_progress" | "review" | "done";
-export type Assignee = "fonz" | "atlas";
+export type TaskStatus = "triage" | "ready" | "in_progress" | "blocked" | "done";
+export type Assignee = "fonz" | "hermi_ops" | "hermi_dev" | "hermi_research" | "claudia" | "nataly";
+export type TaskCategory = "loans" | "finance" | "training" | "lead_gen" | "dev" | "team_ops" | "personal";
 
 export interface Task {
   id: string;
@@ -10,6 +11,9 @@ export interface Task {
   priority: Priority;
   status: TaskStatus;
   createdAt: string;
+  category?: TaskCategory;
+  nextAction?: string;
+  successCriteria?: string;
 }
 
 export interface ActivityEvent {
