@@ -43,6 +43,12 @@ const channelGroups: ChannelGroup[] = [
     ],
   },
   {
+    title: "body",
+    channels: [
+      { href: "/body-os", label: "body-os", badge: "trainer" },
+    ],
+  },
+  {
     title: "archive",
     channels: [
       { href: "/projects", label: "projects" },
