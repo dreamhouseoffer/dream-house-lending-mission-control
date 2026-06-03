@@ -22,6 +22,7 @@ const companyRevenue = [
   { month: "Feb", revenue: 35919.98, projected: false },
   { month: "Mar", revenue: 58592.71, projected: false },
   { month: "Apr", revenue: 83704.0, projected: false },
+  { month: "May", revenue: 72289.74, projected: false },
 ];
 
 const pnlRows = [
@@ -29,67 +30,68 @@ const pnlRows = [
   { month: "Feb", revenue: 35919.98, expenses: 19561, loComp: 16933.07, net: -574.09 },
   { month: "Mar", revenue: 58592.71, expenses: 19561, loComp: 23694.96, net: 15336.75 },
   { month: "Apr", revenue: 83704.0, expenses: 19561, loComp: 24783.11, net: 39359.89 },
+  { month: "May", revenue: 72289.74, expenses: 19561, loComp: 31155.77, net: 21572.97 },
 ];
 
 const loPerformance = [
-  { name: "Alfonso Garza", deals: 23, ytdDeals: 23, revenueGenerated: 161162.14, comp: 0, retention: 92.2, avgDeal: 7007, tone: "green" as Tone, note: "Best DHL retention" },
-  { name: "Emmanuel Duran", deals: 16, ytdDeals: 16, revenueGenerated: 34401.69, comp: 61228.86, retention: 36.0, avgDeal: 2150, tone: "red" as Tone, note: "Split/credit drag" },
-  { name: "Yanelit Trujillo", deals: 4, ytdDeals: 4, revenueGenerated: 20491.10, comp: 16503.63, retention: 55.9, avgDeal: 5123, tone: "amber" as Tone, note: "Cleaner split, low volume" },
+  { name: "Alfonso Garza", deals: 30, ytdDeals: 30, revenueGenerated: 210218.91, comp: 0, retention: 100.0, avgDeal: 7007, tone: "green" as Tone, note: "Best DHL retention" },
+  { name: "Emmanuel Duran", deals: 19, ytdDeals: 19, revenueGenerated: 41930.28, comp: 75410.54, retention: 35.7, avgDeal: 2207, tone: "red" as Tone, note: "Split/credit drag" },
+  { name: "Yanelit Trujillo", deals: 8, ytdDeals: 8, revenueGenerated: 36195.48, comp: 33477.72, retention: 52.0, avgDeal: 4524, tone: "amber" as Tone, note: "May volume helped, margin still split-sensitive" },
   { name: "Alex Tucker", deals: 2, ytdDeals: 2, revenueGenerated: 3658.50, comp: 10296.52, retention: 27.0, avgDeal: 1829, tone: "red" as Tone, note: "Bad margin" },
 ];
 
 const loPnlRows = [
   {
     name: "Alfonso Garza",
-    revenue: 68222.71,
+    revenue: 49056.77,
     directComp: 0,
-    grossContribution: 68222.71,
-    retention: 99.7,
+    grossContribution: 49056.77,
+    retention: 100.0,
     deals: 7,
-    revenuePerDeal: 9746,
-    reimbursements: 1094.59,
-    status: "April engine",
-    action: "April Monday.com P&L: 7 funded files. Broker Check $69,469.10; pass-through reimbursements $1,094.59; Due to LO $0.00; Due to Dream House $68,222.71.",
+    revenuePerDeal: 7008,
+    reimbursements: 1230,
+    status: "May engine",
+    action: "May Monday.com P&L: 7 funded files. Broker Check $50,286.77; pass-through reimbursements $1,230.00; Due to LO $0.00; Due to Dream House $49,056.77.",
     tone: "green" as Tone,
   },
   {
     name: "Emmanuel Duran",
-    revenue: 10449.75,
-    directComp: 19406.68,
-    grossContribution: 10449.75,
-    retention: 34.9,
-    deals: 5,
-    revenuePerDeal: 2090,
-    reimbursements: 801,
-    status: "Profitable before credit leakage, split is rich",
-    action: "April Monday.com P&L: 5 funded files. Broker Check $30,756.43; pass-through reimbursements $801.00; Due to LO $19,406.68; Due to Dream House $10,449.75.",
-    tone: "amber" as Tone,
+    revenue: 7528.59,
+    directComp: 14181.68,
+    grossContribution: 7528.59,
+    retention: 34.7,
+    deals: 3,
+    revenuePerDeal: 2510,
+    reimbursements: 1652,
+    status: "Split drag remains heavy",
+    action: "May Monday.com P&L: 3 funded files. Broker Check $23,162.27; pass-through reimbursements $1,652.00; Due to LO $14,181.68; Due to Dream House $7,528.59.",
+    tone: "red" as Tone,
   },
   {
     name: "Yanelit Trujillo",
-    revenue: 4435.05,
-    directComp: 3628.68,
-    grossContribution: 4435.05,
-    retention: 55.0,
-    deals: 1,
-    revenuePerDeal: 4435,
-    reimbursements: 132,
-    status: "Clean split, needs more volume",
-    action: "April Monday.com P&L: 1 funded file. Broker Check $8,195.73; pass-through reimbursements $132.00; Due to LO $3,628.68; Due to Dream House $4,435.05.",
-    tone: "green" as Tone,
+    revenue: 15704.38,
+    directComp: 16974.09,
+    grossContribution: 15704.38,
+    retention: 48.1,
+    deals: 4,
+    revenuePerDeal: 3926,
+    reimbursements: 660,
+    status: "Good May volume, split is tight",
+    action: "May Monday.com P&L: 4 funded files. Broker Check $33,338.45; pass-through reimbursements $660.00; Due to LO $16,974.09; Due to Dream House $15,704.38.",
+    tone: "amber" as Tone,
   },
   {
     name: "Alex Tucker",
-    revenue: 596.49,
-    directComp: 1747.75,
-    grossContribution: 596.49,
-    retention: 27.0,
-    deals: 1,
-    revenuePerDeal: 596,
-    reimbursements: 135,
-    status: "Bad margin",
-    action: "April Monday.com P&L: 1 funded file. Broker Check $2,344.24; pass-through reimbursements $135.00; Due to LO $1,747.75; Due to Dream House $596.49.",
-    tone: "red" as Tone,
+    revenue: 0,
+    directComp: 0,
+    grossContribution: 0,
+    retention: 0,
+    deals: 0,
+    revenuePerDeal: 0,
+    reimbursements: 0,
+    status: "No May closings loaded",
+    action: "May Monday.com P&L: no funded files in the uploaded May closings sheet.",
+    tone: "slate" as Tone,
   },
 ];
 
@@ -227,7 +229,7 @@ const ytdLoCreditLeakage = {
 };
 
 const monthlyLoPnlRows = loPnlRows.map((lo) => ({
-  period: "April",
+  period: "May",
   name: lo.name === "Emmanuel Duran" ? "Emmanuel Duran / Manny" : lo.name,
   deals: lo.deals,
   revenue: lo.revenue,
@@ -246,47 +248,47 @@ const ytdLoPnlRows = [
   {
     period: "YTD Jan-May",
     name: "Alfonso Garza",
-    deals: 23,
-    revenue: 161162.14,
+    deals: 30,
+    revenue: 210218.91,
     directComp: 0,
-    reimbursements: 3338.09,
-    creditCost: 8498,
+    reimbursements: 4568.09,
+    creditCost: 10039.75,
     netCreditLeakage: ytdLoCreditLeakage.alfonso,
-    contribution: 161162.14 - ytdLoCreditLeakage.alfonso,
-    retention: 92.2,
+    contribution: 210218.91 - ytdLoCreditLeakage.alfonso,
+    retention: 100.0,
     revenuePerDeal: 7007,
     tone: "green" as Tone,
-    note: "Monday.com YTD: Broker Check $178,096.51; Broker Comp $174,863.92; Due to LO $0.00; Due to DHL $161,162.14. Credit leakage subtracts pull-user cost less pass-through reimbursements.",
+    note: "Monday.com YTD Jan-May: Due to LO $0.00; Due to DHL $210,218.91. Credit leakage subtracts pull-user cost less pass-through reimbursements.",
   },
   {
     period: "YTD Jan-May",
     name: "Emmanuel Duran / Manny",
-    deals: 16,
-    revenue: 34401.69,
-    directComp: 61228.86,
-    reimbursements: 3412,
-    creditCost: 14002.9,
+    deals: 19,
+    revenue: 41930.28,
+    directComp: 75410.54,
+    reimbursements: 5064,
+    creditCost: 16749.4,
     netCreditLeakage: ytdLoCreditLeakage.emmanuel,
-    contribution: 34401.69 - ytdLoCreditLeakage.emmanuel,
-    retention: 36.0,
-    revenuePerDeal: 2150,
+    contribution: 41930.28 - ytdLoCreditLeakage.emmanuel,
+    retention: 35.7,
+    revenuePerDeal: 2207,
     tone: "red" as Tone,
-    note: "Monday.com YTD: Broker Check $99,010.83; Due to LO $61,228.86; Due to DHL $34,401.69. Biggest drag is split plus credit leakage.",
+    note: "Monday.com YTD Jan-May: Due to LO $75,410.54; Due to DHL $41,930.28. Biggest drag is split plus credit leakage.",
   },
   {
     period: "YTD Jan-May",
     name: "Yanelit Trujillo",
-    deals: 4,
-    revenue: 20491.10,
-    directComp: 16503.63,
-    reimbursements: 690,
-    creditCost: 4192,
+    deals: 8,
+    revenue: 36195.48,
+    directComp: 33477.72,
+    reimbursements: 1350,
+    creditCost: 4930,
     netCreditLeakage: ytdLoCreditLeakage.yanelit,
-    contribution: 20491.10 - ytdLoCreditLeakage.yanelit,
-    retention: 55.9,
-    revenuePerDeal: 5123,
+    contribution: 36195.48 - ytdLoCreditLeakage.yanelit,
+    retention: 52.0,
+    revenuePerDeal: 4524,
     tone: "amber" as Tone,
-    note: "Monday.com YTD: Broker Check $37,364.73; Due to LO $16,503.63; Due to DHL $20,491.10. Margin is usable; volume is the issue.",
+    note: "Monday.com YTD Jan-May: Due to LO $33,477.72; Due to DHL $36,195.48. May volume improved the story; split still matters.",
   },
   {
     period: "YTD Jan-May",
@@ -301,7 +303,7 @@ const ytdLoPnlRows = [
     retention: 27.0,
     revenuePerDeal: 1829,
     tone: "red" as Tone,
-    note: "Monday.com YTD: Broker Check $13,955.02; Due to LO $10,296.52; Due to DHL $3,658.50. Bad margin even before any unmatched pull-user cost.",
+    note: "Monday.com YTD Jan-May: no May closings loaded. Bad margin even before any unmatched pull-user cost.",
   },
 ];
 
@@ -328,30 +330,33 @@ const revenuePerLoan = [
   { month: "Jan", value: 4150 },
   { month: "Feb", value: 5987 },
   { month: "Mar", value: 3906 },
-  { month: "Apr*", value: 8067 },
+  { month: "Apr", value: 8067 },
+  { month: "May", value: 5164 },
 ];
 
 const costToOriginate = [
   { month: "Jan", value: 1956 },
   { month: "Feb", value: 3260 },
   { month: "Mar", value: 1304 },
-  { month: "Apr*", value: 1956 },
+  { month: "Apr", value: 1956 },
+  { month: "May", value: 1397 },
 ];
 
 const productMix = [
-  { name: "FHA", deals: 15, pct: 45, color: "#60a5fa" },
-  { name: "CONV", deals: 8, pct: 24, color: "#34d399" },
-  { name: "Non-QM / Hard Money", deals: 7, pct: 21, color: "#f59e0b" },
-  { name: "HELOC", deals: 2, pct: 6, color: "#a78bfa" },
-  { name: "VA", deals: 1, pct: 3, color: "#f87171" },
+  { name: "FHA", deals: 18, pct: 38, color: "#60a5fa" },
+  { name: "CONV", deals: 13, pct: 28, color: "#34d399" },
+  { name: "Non-QM / Hard Money", deals: 10, pct: 21, color: "#f59e0b" },
+  { name: "HELOC / HELOAN", deals: 4, pct: 9, color: "#a78bfa" },
+  { name: "VA", deals: 2, pct: 4, color: "#f87171" },
 ];
 
 const lenderDistribution = [
-  { name: "UWM", deals: 8, pct: 24 },
-  { name: "Pennymac", deals: 4, pct: 12 },
-  { name: "Valley Mortgage Investment", deals: 4, pct: 12 },
-  { name: "Flexpoint", deals: 3, pct: 9 },
-  { name: "Other", deals: 14, pct: 42 },
+  { name: "UWM", deals: 10, pct: 21 },
+  { name: "Pennymac", deals: 7, pct: 15 },
+  { name: "Valley Mortgage Investment", deals: 4, pct: 9 },
+  { name: "Kind", deals: 3, pct: 6 },
+  { name: "Flexpoint", deals: 3, pct: 6 },
+  { name: "Other", deals: 20, pct: 43 },
 ];
 
 const personalWaterfall = [
@@ -369,10 +374,10 @@ const debtScenarios = [
 ];
 
 const totalPersonalBurn = 15622;
-const netAfterBusiness = 38107 - totalPersonalBurn;
-const savingsRate = (netAfterBusiness / 38107) * 100;
-const profitMargin = (38107 / 80668) * 100;
-const revenueGrowth = ((80668 - 58593) / 58593) * 100;
+const netAfterBusiness = 21572.97 - totalPersonalBurn;
+const savingsRate = (netAfterBusiness / 21572.97) * 100;
+const profitMargin = (21572.97 / 72289.74) * 100;
+const revenueGrowth = ((72289.74 - 83704.0) / 83704.0) * 100;
 const totalSavingsAnnual = 97248;
 
 const toneMap: Record<Tone, string> = {
@@ -603,24 +608,24 @@ export default function FinancePage() {
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-3 text-xs text-white/45">
-          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-300">April projection active</span>
+          <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-300">May closings loaded</span>
           <span>{currentViewLabel}</span>
-          <span>Updated with May Advantage credit pulls</span>
+          <span>Updated with May closings + Advantage credit pulls</span>
         </div>
       </div>
 
       {view === "company" ? (
         <div className="space-y-6">
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Monthly Revenue" value={fmt(80668)} meta={`↑ ${pct(revenueGrowth)} vs Mar`} tone="green" />
-            <MetricCard label="Monthly Profit" value={fmt(38107)} meta="Best month in current run-rate" tone="green" />
+            <MetricCard label="Monthly Revenue" value={fmt(72289.74)} meta={`${pct(revenueGrowth)} vs Apr`} tone="amber" />
+            <MetricCard label="Monthly Profit" value={fmt(21572.97)} meta="May profit after loaded LO comp" tone="amber" />
             <MetricCard label="Profit Margin" value={pct(profitMargin)} meta={profitMargin > 40 ? "Healthy margin" : profitMargin > 20 ? "Watch margin" : "Below target"} tone={profitMargin > 40 ? "green" : profitMargin > 20 ? "amber" : "red"} />
             <MetricCard label="Cash Position" value={fmt(51307.35)} meta="Chase business checking 4/30" tone="green" />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-2">
-            <MetricCard label="Cost to Originate" value={fmt(1956)} meta="Apr projected • target < $2.5K/file" tone="green" />
-            <MetricCard label="Revenue per Loan" value={fmt(8067)} meta="Apr projected • strongest month" tone="green" />
+            <MetricCard label="Cost to Originate" value={fmt(1397)} meta="May loaded • target < $2.5K/file" tone="green" />
+            <MetricCard label="Revenue per Loan" value={fmt(5164)} meta="May loaded • 14 fundings" tone="green" />
           </div>
 
           <div className="rounded-3xl border border-white/10 bg-[#0f141a] p-3">
@@ -705,7 +710,7 @@ export default function FinancePage() {
           ) : null}
 
           {cfoTab === "credit" ? (
-          <SectionCard title="Advantage Pull Cost — Jan to Apr" subtitle="Vendor cost by invoice; pass-through fees are reimbursements, not expenses">
+          <SectionCard title="Advantage Pull Cost — Jan to May" subtitle="Vendor cost by invoice; pass-through fees are reimbursements, not expenses">
             <div className="grid gap-4 xl:grid-cols-[1fr_0.95fr]">
               <div className="overflow-hidden rounded-2xl border border-white/10">
                 <table className="w-full text-sm">
@@ -870,7 +875,7 @@ export default function FinancePage() {
               <div className="grid gap-3 sm:grid-cols-3 lg:flex-1">
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-white/35">{loReviewMode === "monthly" ? "Month" : "Period"}</p>
-                  <p className="mt-1 text-xl font-semibold text-white">{loReviewMode === "monthly" ? "April Review" : "YTD Jan-Apr"}</p>
+                  <p className="mt-1 text-xl font-semibold text-white">{loReviewMode === "monthly" ? "May Review" : "YTD Jan-May"}</p>
                 </div>
                 <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/8 p-4">
                   <p className="text-xs uppercase tracking-[0.16em] text-emerald-200/70">Due to DHL</p>
