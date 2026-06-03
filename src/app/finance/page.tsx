@@ -201,15 +201,16 @@ const advantagePullMonths = [
   { month: "Feb", hard: 3686.0, soft: 2695.0, total: 6381.0, note: "Hard + soft invoices loaded" },
   { month: "Mar", hard: 3393.4, soft: 4021.0, total: 7414.4, note: "Hard + soft invoices loaded" },
   { month: "Apr", hard: 4178.5, soft: 2943.5, total: 7122.0, note: "Hard + soft invoices loaded" },
+  { month: "May", hard: 2763.0, soft: 2326.25, total: 5089.25, note: "May Advantage invoices: hard + soft loaded" },
 ];
 
 const advantagePullByPerson = [
-  { name: "Emmanuel Duran / Manny", knownCost: 14002.9, reimbursements: 3412.0, note: "YTD pull cost less Monday.com pass-through reimbursements collected" },
-  { name: "Alfonso Garza Jr", knownCost: 8498.0, reimbursements: 3338.09, note: "YTD pull cost less Monday.com pass-through reimbursements collected" },
-  { name: "Yanelit Trujillo", knownCost: 4192.0, reimbursements: 690.0, note: "YTD pull cost less Monday.com pass-through reimbursements collected" },
+  { name: "Emmanuel Duran / Manny", knownCost: 16749.4, reimbursements: 3412.0, note: "YTD Jan-May pull cost less Monday.com pass-through reimbursements collected; May added $2,746.50" },
+  { name: "Alfonso Garza Jr", knownCost: 10039.75, reimbursements: 3338.09, note: "YTD Jan-May pull cost less Monday.com pass-through reimbursements collected; May added $1,541.75" },
+  { name: "Yanelit Trujillo", knownCost: 4930.0, reimbursements: 690.0, note: "YTD Jan-May pull cost less Monday.com pass-through reimbursements collected; May added $738.00" },
   { name: "Alex Tucker", knownCost: 0.0, reimbursements: 405.0, note: "Monday.com pass-through collected; matching pull-user invoice not loaded" },
   { name: "Daisy Cantu", knownCost: 266.0, reimbursements: 0.0, note: "Prior/other user" },
-  { name: "Claudia Melendez", knownCost: 31.0, reimbursements: 0.0, note: "Small April charge" },
+  { name: "Claudia Melendez", knownCost: 93.0, reimbursements: 0.0, note: "YTD Jan-May pull cost; May added $62.00" },
 ];
 
 const advantagePullPnlRows = advantagePullByPerson.map((person) => ({
@@ -243,7 +244,7 @@ const monthlyLoPnlRows = loPnlRows.map((lo) => ({
 
 const ytdLoPnlRows = [
   {
-    period: "YTD Jan-Apr",
+    period: "YTD Jan-May",
     name: "Alfonso Garza",
     deals: 23,
     revenue: 161162.14,
@@ -258,7 +259,7 @@ const ytdLoPnlRows = [
     note: "Monday.com YTD: Broker Check $178,096.51; Broker Comp $174,863.92; Due to LO $0.00; Due to DHL $161,162.14. Credit leakage subtracts pull-user cost less pass-through reimbursements.",
   },
   {
-    period: "YTD Jan-Apr",
+    period: "YTD Jan-May",
     name: "Emmanuel Duran / Manny",
     deals: 16,
     revenue: 34401.69,
@@ -273,7 +274,7 @@ const ytdLoPnlRows = [
     note: "Monday.com YTD: Broker Check $99,010.83; Due to LO $61,228.86; Due to DHL $34,401.69. Biggest drag is split plus credit leakage.",
   },
   {
-    period: "YTD Jan-Apr",
+    period: "YTD Jan-May",
     name: "Yanelit Trujillo",
     deals: 4,
     revenue: 20491.10,
@@ -288,7 +289,7 @@ const ytdLoPnlRows = [
     note: "Monday.com YTD: Broker Check $37,364.73; Due to LO $16,503.63; Due to DHL $20,491.10. Margin is usable; volume is the issue.",
   },
   {
-    period: "YTD Jan-Apr",
+    period: "YTD Jan-May",
     name: "Alex Tucker",
     deals: 2,
     revenue: 3658.50,
@@ -604,7 +605,7 @@ export default function FinancePage() {
         <div className="flex flex-wrap items-center gap-3 text-xs text-white/45">
           <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-300">April projection active</span>
           <span>{currentViewLabel}</span>
-          <span>Updated from hardcoded April snapshot</span>
+          <span>Updated with May Advantage credit pulls</span>
         </div>
       </div>
 
