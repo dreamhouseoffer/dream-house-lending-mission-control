@@ -24,6 +24,7 @@ const channelGroups: ChannelGroup[] = [
       { href: "/", label: "today", badge: "focus" },
       { href: "/pipeline", label: "pipeline", badge: "arive" },
       { href: "/tasks", label: "mission-board", badge: "ops" },
+      { href: "/milo-approvals", label: "milo-approvals", badge: "approve" },
       { href: "/ask", label: "ask-hermi", badge: "team" },
     ],
   },
