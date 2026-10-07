@@ -101,7 +101,7 @@ export default function MiloApprovalsPage() {
             <p className="text-xs font-black uppercase tracking-[0.28em] text-emerald-300/70">Milo approval board</p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">Approve the work before anything goes public.</h1>
             <p className="mt-3 max-w-2xl text-sm leading-6 text-white/55">
-              This board is where Milo and Hermie route YELLOW/RED work. Approval does <span className="font-semibold text-white">not</span> auto-publish or change the website. It authorizes Milo/Hermie to execute, then verify.
+              This board is where Milo and Hermie route YELLOW/RED work. Approval now queues the approved scope for execution and verification. It still does <span className="font-semibold text-white">not</span> authorize unrelated lead submissions, spending, outreach, DNS/email changes, or off-scope public changes.
             </p>
           </div>
           <button
@@ -206,7 +206,7 @@ function ApprovalCard({ approval, note, onNote, onAction, saving }: { approval: 
 
       <div className="mt-3 grid grid-cols-1 gap-2">
         <button disabled={saving} onClick={() => onAction("approve")} className="rounded-xl bg-emerald-300 px-3 py-2 text-sm font-bold text-black disabled:opacity-50">
-          {saving ? "Saving..." : "Approve"}
+          {saving ? "Saving..." : "Approve + queue execution"}
         </button>
         <div className="grid grid-cols-2 gap-2">
           <button disabled={saving} onClick={() => onAction("needs_changes")} className="rounded-xl border border-amber-300/20 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-100 disabled:opacity-50">

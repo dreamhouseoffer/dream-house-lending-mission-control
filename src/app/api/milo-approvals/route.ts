@@ -102,7 +102,7 @@ export async function PATCH(request: Request) {
 
   if (action === "approve") {
     fields.Decision = "Approved";
-    fields.Status = "Approved";
+    fields.Status = "In Progress";
     fields["Approved At"] = new Date().toISOString();
   } else if (action === "reject") {
     fields.Decision = "Rejected";
