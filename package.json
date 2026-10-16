@@ -7,7 +7,10 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "test:ask-hermes": "node scripts/test-ask-hermes-core.mjs"
+    "test:ask-hermes": "node scripts/test-ask-hermes-core.mjs",
+    "test:headquarters": "node --test scripts/test-headquarters.mjs",
+    "test:headquarters:ui": "node --test scripts/test-headquarters-ui.mjs",
+    "import:headquarters": "node scripts/import-headquarters-snapshot.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.80.0",

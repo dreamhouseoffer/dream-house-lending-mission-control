@@ -21,6 +21,7 @@ const channelGroups: ChannelGroup[] = [
   {
     title: "core",
     channels: [
+      { href: "/headquarters", label: "headquarters", badge: "map" },
       { href: "/", label: "today", badge: "focus" },
       { href: "/pipeline", label: "pipeline", badge: "arive" },
       { href: "/tasks", label: "mission-board", badge: "ops" },
@@ -52,7 +53,7 @@ const channelGroups: ChannelGroup[] = [
   {
     title: "archive",
     channels: [
-      { href: "/projects", label: "projects" },
+      { href: "/projects/legacy", label: "projects" },
       { href: "/docs", label: "docs" },
       { href: "/memory", label: "memory" },
       { href: "/tools", label: "tools" },
@@ -123,7 +124,7 @@ function Brand({ closeButton }: { closeButton?: React.ReactNode }) {
   return (
     <div className="mb-5 px-1">
       <div className="flex items-start justify-between gap-3">
-        <Link href="/projects" className="group flex min-w-0 items-center gap-3" title="Mission Control">
+        <Link href="/headquarters" className="group flex min-w-0 items-center gap-3" title="Mission Control">
           <div className="flex size-10 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/20 bg-emerald-500/10 text-lg shadow-lg shadow-emerald-950/20">
             🦞
           </div>
