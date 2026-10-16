@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
+import { createHash } from 'node:crypto';
 import {
   CONNECTION_VERIFICATIONS,
   EVIDENCE_LEVELS,
@@ -29,8 +28,6 @@ import {
   layoutControlPlane,
   parseTabHash,
 } from '../src/lib/headquarters/view-model.mjs';
-
-const run = promisify(execFile);
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const src = (p) => readFile(join(ROOT, p), 'utf8');
@@ -225,9 +222,11 @@ test('/projects bookmark redirects server-side to /headquarters', async () => {
 });
 
 test('original Projects page is preserved verbatim at /projects/legacy and linked from archive', async () => {
-  const { stdout: original } = await run('git', ['show', 'HEAD:src/app/projects/page.tsx'], { maxBuffer: 10 * 1024 * 1024 });
-  const legacy = await src('src/app/projects/legacy/page.tsx');
-  assert.equal(legacy, original);
+  // SHA-256 of `git show 16630c5:src/app/projects/page.tsx` (the pre-HQ Projects page).
+  // Embedded so the check does not depend on HEAD or on full git history.
+  const ORIGINAL_PROJECTS_SHA256 = '6577fc60b4685070daff494ec5d528bbd066ce64821e4d3272f87a0f4c469c50';
+  const legacy = await readFile(join(ROOT, 'src/app/projects/legacy/page.tsx'));
+  assert.equal(createHash('sha256').update(legacy).digest('hex'), ORIGINAL_PROJECTS_SHA256);
   const sidebar = await src('src/components/sidebar.tsx');
   assert.match(sidebar, /href: "\/projects\/legacy", label: "projects"/);
   assert.doesNotMatch(sidebar, /href: "\/projects",/);
