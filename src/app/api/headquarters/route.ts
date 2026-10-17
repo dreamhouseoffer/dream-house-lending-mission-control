@@ -9,7 +9,7 @@ const HEADERS = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosnif
 
 // Read-only: serves the whitelisted private audit snapshot. No writes or actions exist on this route.
 export async function GET() {
-  if (!hasHeadquartersAccess()) {
+  if (!(await hasHeadquartersAccess())) {
     return NextResponse.json({ ok: false, error: "Unauthorized." }, { status: 401, headers: HEADERS });
   }
   const snapshot = await loadHeadquartersSnapshot();

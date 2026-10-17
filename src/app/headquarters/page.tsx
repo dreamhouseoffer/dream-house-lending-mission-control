@@ -12,8 +12,8 @@ export const runtime = "nodejs";
 export const metadata: Metadata = { title: "Headquarters · Mission Control" };
 
 export default async function HeadquartersPage() {
-  // Fails closed even in dev: without a configured PIN and matching cookie, nothing is loaded.
-  if (!hasHeadquartersAccess()) redirect("/login?next=/headquarters");
+  // Fails closed even in dev: without a configured PIN, signing secret and valid signed session, nothing is loaded.
+  if (!(await hasHeadquartersAccess())) redirect("/login?next=/headquarters");
   const snapshot = (await loadHeadquartersSnapshot()) as HqSnapshot;
   return <HeadquartersView snapshot={snapshot} />;
 }

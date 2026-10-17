@@ -5,10 +5,11 @@
 export const BRIDGE_ENABLE_HINT =
   "Enabled once the Mac execution bridge (mc-bridge) is running and an approved, authenticated Vercel-to-Mac transport is configured.";
 
-export const SOURCE_STATES = ["live", "stale", "offline", "snapshot", "unverified", "not_connected"];
+export const SOURCE_STATES = ["live", "observed", "stale", "offline", "snapshot", "unverified", "not_connected"];
 
 export const SOURCE_STATE_LABELS = {
   live: "Live",
+  observed: "Read via bridge",
   stale: "Stale",
   offline: "Offline",
   snapshot: "Snapshot",
@@ -157,7 +158,7 @@ export function resolveViewState({ source, loading = false, error = null, items 
   if (loading) return "loading";
   if (error) return "error";
   if (!Array.isArray(items)) return "unverified";
-  if (state === "live" && observedAt) {
+  if ((state === "live" || state === "observed") && observedAt) {
     const t = Date.parse(observedAt);
     if (!Number.isFinite(t) || now - t > staleAfterMs) return "stale";
   }

@@ -1,16 +1,31 @@
 "use client";
 
-import { FormEvent, Suspense, useMemo, useState } from "react";
+import { FormEvent, Suspense, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { LockKeyhole, ShieldCheck } from "lucide-react";
+import { safeNextPath } from "@/lib/auth/redirect.mjs";
 
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const nextPath = useMemo(() => searchParams.get("next") || "/projects", [searchParams]);
+  const nextPath = useMemo(() => safeNextPath(searchParams.get("next")), [searchParams]);
   const [pin, setPin] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // External links (Telegram etc.) arrive cross-site, so the SameSite=Strict cookie is withheld on that first
+  // navigation. This same-origin probe does carry it: an already signed-in owner goes straight back to the board
+  // without a PIN or a bridge call. Anything other than an explicit true leaves the normal form in place.
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/auth/session", { method: "GET", credentials: "same-origin", cache: "no-store", signal: controller.signal })
+      .then((response) => (response.ok ? response.json() : null))
+      .then((data) => {
+        if (data?.authenticated === true) router.replace(nextPath);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [router, nextPath]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,7 +47,7 @@ function LoginForm() {
       return;
     }
 
-    router.replace(nextPath.startsWith("/") ? nextPath : "/projects");
+    router.replace(nextPath);
     router.refresh();
   }
 

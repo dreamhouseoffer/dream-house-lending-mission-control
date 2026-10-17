@@ -21,6 +21,7 @@ import {
 } from '../src/lib/headquarters/model.mjs';
 import { loadHeadquartersSnapshot } from '../src/lib/headquarters/loader.mjs';
 import { isHeadquartersAuthorized } from '../src/lib/headquarters/access.mjs';
+import { createSessionToken, readSessionConfig } from '../src/lib/auth/session.mjs';
 import { buildSnapshotFromEvidence, ImportValidationError } from './headquarters/import-core.mjs';
 
 const run = promisify(execFile);
@@ -376,25 +377,36 @@ test('createUnavailableSnapshot is truthful and empty', () => {
 
 // ---------- access guard ----------
 
-test('HQ guard fails closed without a configured PIN, even with a cookie', () => {
+// Synthetic test-only values; never real credentials.
+const HQ_SECRET = 'synthetic-session-secret-0123456789abcdef';
+
+test('HQ guard fails closed without a configured PIN or signing secret, even with a valid-looking cookie', async () => {
+  const token = await createSessionToken(readSessionConfig({ pin: '1234', secret: HQ_SECRET }));
   for (const pin of [undefined, null, '', '   ']) {
-    for (const cookie of [undefined, '', 'anything', pin]) {
-      assert.equal(isHeadquartersAuthorized({ pin, cookie }), false, `pin=${JSON.stringify(pin)} cookie=${JSON.stringify(cookie)}`);
+    for (const cookie of [undefined, '', 'anything', pin, token]) {
+      assert.equal(await isHeadquartersAuthorized({ pin, secret: HQ_SECRET, cookie }), false, `pin=${JSON.stringify(pin)}`);
     }
   }
-});
-
-test('HQ guard rejects missing or invalid cookies when a PIN is configured', () => {
-  for (const cookie of [undefined, null, '', '1234 ', '12345', '123', 'other', 1234]) {
-    assert.equal(isHeadquartersAuthorized({ pin: '1234', cookie }), false, `cookie=${JSON.stringify(cookie)}`);
+  for (const secret of [undefined, '', 'too-short']) {
+    assert.equal(await isHeadquartersAuthorized({ pin: '1234', secret, cookie: token }), false, `secret=${JSON.stringify(secret)}`);
   }
 });
 
-test('HQ guard accepts the cookie only when it exactly matches the configured PIN', () => {
-  assert.equal(isHeadquartersAuthorized({ pin: '1234', cookie: '1234' }), true);
-  assert.equal(isHeadquartersAuthorized({ pin: 'synthetic-pin', cookie: 'synthetic-pin' }), true);
-  assert.equal(isHeadquartersAuthorized({}), false);
-  assert.equal(isHeadquartersAuthorized(), false);
+test('HQ guard rejects missing, invalid and legacy raw-PIN cookies', async () => {
+  for (const cookie of [undefined, null, '', '1234', '1234 ', '12345', '123', 'other', 1234]) {
+    assert.equal(await isHeadquartersAuthorized({ pin: '1234', secret: HQ_SECRET, cookie }), false, `cookie=${JSON.stringify(cookie)}`);
+  }
+});
+
+test('HQ guard accepts only a valid unexpired signed session for the configured PIN and secret', async () => {
+  const now = Date.parse('2026-10-16T12:00:00Z');
+  const token = await createSessionToken(readSessionConfig({ pin: '1234', secret: HQ_SECRET }), { now });
+  assert.equal(await isHeadquartersAuthorized({ pin: '1234', secret: HQ_SECRET, cookie: token, now }), true);
+  assert.equal(await isHeadquartersAuthorized({ pin: '9999', secret: HQ_SECRET, cookie: token, now }), false, 'PIN change revokes');
+  assert.equal(await isHeadquartersAuthorized({ pin: '1234', secret: `${HQ_SECRET}x`, cookie: token, now }), false, 'wrong secret');
+  assert.equal(await isHeadquartersAuthorized({ pin: '1234', secret: HQ_SECRET, cookie: token, now: now + 8 * 86400_000 }), false, 'expired');
+  assert.equal(await isHeadquartersAuthorized({}), false);
+  assert.equal(await isHeadquartersAuthorized(), false);
 });
 
 // ---------- review regressions ----------

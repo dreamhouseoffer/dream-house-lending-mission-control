@@ -17,6 +17,7 @@ const TONES: Record<Tone, string> = {
 
 const SOURCE_TONES: Record<string, Tone> = {
   live: "ok",
+  observed: "info",
   stale: "warn",
   offline: "bad",
   snapshot: "info",

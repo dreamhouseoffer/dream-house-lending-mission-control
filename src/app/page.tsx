@@ -1,12 +1,29 @@
 import type { Metadata } from "next";
 import agentStatus from "@/data/agent-status.json";
 import { McPage, ModuleLink, PageHeader, Section, SourceNote, StatTile, StateNotice } from "@/components/mc/ui";
+import { BridgeNotice, TaskList, taskSource } from "@/components/mc/task-views";
 import { SOURCES, capability, displayTotal, resolveViewState, scheduleRows } from "@/lib/mission-control/capabilities.mjs";
+import { countByBucket, formatTime, lastTouched } from "@/lib/mission-control/bridge-client.mjs";
+import { readTasks } from "@/lib/mission-control/bridge";
 
 export const metadata: Metadata = { title: "Home · Mission Control" };
 
-export default function HomePage() {
-  const taskState = resolveViewState({ source: SOURCES.tasks });
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const list = await readTasks();
+  const tasks = list.ok ? list.tasks : null;
+  const taskSrc = taskSource(list);
+  // Unconfigured/offline/failed reads resolve to not_connected/offline/unverified, so every total below is "Unknown".
+  const taskState = list.ok
+    ? resolveViewState({ source: { state: "observed" }, items: list.tasks, observedAt: list.observedAt })
+    : resolveViewState({ source: taskSrc });
+  const counts = tasks ? countByBucket(tasks) : null;
+  const byRecent = (a: { id: string }, b: { id: string }) => lastTouched(b) - lastTouched(a);
+  const active = tasks ? tasks.filter((t) => t.bucket === "running" || t.bucket === "queued").sort(byRecent).slice(0, 5) : [];
+  const results = tasks ? tasks.filter((t) => t.bucket === "completed").sort(byRecent).slice(0, 5) : [];
+  const failures = tasks ? tasks.filter((t) => t.bucket === "failed" || t.bucket === "blocked").sort(byRecent).slice(0, 5) : [];
+  const taskHint = list.ok ? `Bridge read ${formatTime(list.observedAt)}` : taskSrc.state === "offline" ? "Bridge offline" : "Bridge not connected";
   const approvalState = resolveViewState({ source: SOURCES.approvals });
   const schedules = scheduleRows(agentStatus);
   const scheduleState = resolveViewState({ source: SOURCES.schedules, items: schedules });
@@ -23,16 +40,14 @@ export default function HomePage() {
 
       <Section title="Needs attention" description="Items that block real work or decisions.">
         <div className="space-y-3">
-          <StateNotice
-            kind="not_connected"
-            title="Mac execution bridge is not connected"
-            enables={SOURCES.bridge.enables}
-            href="/settings#connections"
-            hrefLabel="Connection setup"
-          >
-            Hermes on the Mac cannot receive assignments or report progress to this dashboard yet. Task, agent and approval
-            totals below are unknown until it is connected.
-          </StateNotice>
+          {list.ok ? (
+            <SourceNote source={taskSrc} />
+          ) : (
+            <BridgeNotice failure={list} subject="Task, agent and approval totals" />
+          )}
+          {counts && counts.failed + counts.blocked > 0 && (
+            <StateNotice kind="error" title={`${counts.failed} failed and ${counts.blocked} blocked task(s) on the Hermes board`} href="/tasks?status=failed" hrefLabel="Review failed tasks" />
+          )}
           <StateNotice kind="info" title="Milo approvals are reviewed in the retained module" href="/milo-approvals" hrefLabel="Open Milo approvals">
             Pending Airtable approvals are not summarized here; open the module to see the current queue.
           </StateNotice>
@@ -45,26 +60,22 @@ export default function HomePage() {
       </Section>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Active work" value={displayTotal(taskState, undefined)} hint="Bridge not connected" href="/tasks?status=running" />
-        <StatTile label="Awaiting approval" value={displayTotal(approvalState, undefined)} hint="Bridge not connected" href="/approvals" />
-        <StatTile label="Failed tasks" value={displayTotal(taskState, undefined)} hint="Bridge not connected" href="/tasks?status=failed" />
+        <StatTile label="Active work" value={displayTotal(taskState, counts?.running)} hint={taskHint} href="/tasks?status=running" />
+        <StatTile label="Awaiting approval" value={displayTotal(approvalState, undefined)} hint="Approval ledger not exposed by the bridge" href="/approvals" />
+        <StatTile label="Failed tasks" value={displayTotal(taskState, counts?.failed)} hint={taskHint} href="/tasks?status=failed" />
         <StatTile label="Schedules (snapshot)" value={displayTotal(scheduleState, schedules.length)} hint={`Recorded ${agentStatus.lastUpdated}`} href="/workflows" />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Section title="Active work" href="/tasks" hrefLabel="Tasks">
-          <StateNotice kind="not_connected" title="No task source connected" enables={SOURCES.tasks.enables}>
-            Running and queued tasks come from the Hermes task board. Nothing is listed because nothing can be verified.
-          </StateNotice>
+          {list.ok ? <TaskList tasks={active} empty="No running or queued tasks on the board" /> : <BridgeNotice failure={list} subject="Running and queued tasks" />}
         </Section>
         <Section title="Recent results" href="/briefs" hrefLabel="Brief archive">
-          <StateNotice kind="not_connected" title="Task results unavailable" enables={SOURCES.tasks.enables}>
-            Finished task results will open from here and from task details. The retained daily brief archive is available now.
-          </StateNotice>
+          {list.ok ? <TaskList tasks={results} empty="No finished tasks on the board" /> : <BridgeNotice failure={list} subject="Task results" />}
         </Section>
         <Section title="Failures & blockers" href="/workflows" hrefLabel="Workflows">
           <div className="space-y-3">
-            <StateNotice kind="not_connected" title="Task failures unknown" enables={SOURCES.tasks.enables} />
+            {list.ok ? <TaskList tasks={failures} empty="No failed or blocked tasks on the board" /> : <BridgeNotice failure={list} subject="Task failures" />}
             <SourceNote source={SOURCES.schedules} />
             <p className="text-sm text-slate-400">
               {erroring.length === 0
@@ -75,7 +86,7 @@ export default function HomePage() {
         </Section>
         <Section title="Next actions">
           <div className="space-y-2">
-            <ModuleLink href="/tasks#assign" title="Draft an assignment" description={assign.enabled ? "Send work to Hermes." : "Composer is visible; sending is disabled until the bridge connects."} />
+            <ModuleLink href="/tasks#assign" title="Draft an assignment" description={assign.enabled ? "Send work to Hermes." : "Composer is visible; sending from the dashboard is not available in this release."} />
             <ModuleLink href="/pipeline" title="Check the loan pipeline" description="Retained Airtable-backed pipeline module." />
             <ModuleLink href="/ask" title="Ask Hermes" description="Retained question-and-answer module." />
             <ModuleLink href="/headquarters" title="Review Headquarters inventory" description="Private systems map and readiness snapshot." />

@@ -139,15 +139,17 @@ test('page is a dynamic server component that loads the snapshot at request time
   assert.match(page, /loadHeadquartersSnapshot/);
 });
 
-test('page and API both enforce the HQ PIN guard before loading the snapshot', async () => {
+test('page and API both await the signed-session HQ guard before loading the snapshot', async () => {
   const guard = await src('src/lib/headquarters/guard.ts');
   assert.match(guard, /from "next\/headers"/);
   assert.match(guard, /MISSION_CONTROL_PIN/);
-  assert.match(guard, /mission_control_auth/);
+  assert.match(guard, /MISSION_CONTROL_SESSION_SECRET/);
+  assert.match(guard, /SESSION_COOKIE/);
+  assert.match(guard, /export async function hasHeadquartersAccess\(\): Promise<boolean>/);
   assert.match(guard, /isHeadquartersAuthorized/);
   for (const file of ['src/app/headquarters/page.tsx', 'src/app/api/headquarters/route.ts']) {
     const text = await src(file);
-    const guardAt = text.search(/hasHeadquartersAccess\(\)/);
+    const guardAt = text.search(/if \(!\(await hasHeadquartersAccess\(\)\)\)/);
     const loadAt = text.search(/loadHeadquartersSnapshot\(\)/);
     assert.ok(guardAt > 0, `${file} must call the guard`);
     assert.ok(loadAt > guardAt, `${file} must check access before loading the snapshot`);

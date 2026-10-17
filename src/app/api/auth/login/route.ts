@@ -1,32 +1,35 @@
 import { NextResponse } from "next/server";
+import { handleLogin } from "@/lib/auth/login.mjs";
+import { SESSION_COOKIE, cookieOptions, isProductionEnv } from "@/lib/auth/session.mjs";
+import { readBridgeConfig, reportLoginAttempt } from "@/lib/mission-control/bridge-client.mjs";
 
-const AUTH_COOKIE = "mission_control_auth";
+export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
+const HEADERS = { "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
+
+// Owner sign-in: constant-time PIN check, persistent throttle on the Mac bridge (fails closed when it is
+// unreachable), then a signed expiring session cookie. Nothing here logs the PIN, address, key or secret.
 export async function POST(request: Request) {
-  const configuredPin = process.env.MISSION_CONTROL_PIN;
-
-  if (!configuredPin) {
-    return NextResponse.json(
-      { ok: false, error: "Mission Control PIN is not configured." },
-      { status: 500 }
-    );
-  }
-
   const body = await request.json().catch(() => null);
-  const pin = typeof body?.pin === "string" ? body.pin.trim() : "";
+  const bridge = readBridgeConfig({ url: process.env.MC_BRIDGE_URL, secret: process.env.MC_BRIDGE_SECRET });
 
-  if (pin !== configuredPin) {
-    return NextResponse.json({ ok: false, error: "Wrong PIN." }, { status: 401 });
-  }
-
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(AUTH_COOKIE, configuredPin, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 30,
+  const result = await handleLogin({
+    pinInput: body?.pin,
+    env: {
+      MISSION_CONTROL_PIN: process.env.MISSION_CONTROL_PIN,
+      MISSION_CONTROL_SESSION_SECRET: process.env.MISSION_CONTROL_SESSION_SECRET,
+    },
+    headers: request.headers,
+    trustVercel: process.env.VERCEL === "1",
+    attempt: (a) => reportLoginAttempt(bridge, a),
   });
 
+  const headers: Record<string, string> = { ...HEADERS };
+  if (result.retryAfter) headers["Retry-After"] = String(result.retryAfter);
+  const response = NextResponse.json(result.body, { status: result.status, headers });
+  if (result.token) {
+    response.cookies.set(SESSION_COOKIE, result.token, cookieOptions({ production: isProductionEnv({ NODE_ENV: process.env.NODE_ENV, VERCEL: process.env.VERCEL }) }));
+  }
   return response;
 }

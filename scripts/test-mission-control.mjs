@@ -116,7 +116,7 @@ test('replaced pages are preserved verbatim at explicit legacy paths', async () 
 });
 
 test('new operational pages are server components with no fake activity, storage or execution calls', async () => {
-  const files = [...NEW_PAGES, 'src/components/mc/ui.tsx', 'src/components/mc/legacy-banner.tsx'];
+  const files = [...NEW_PAGES, 'src/app/tasks/[id]/page.tsx', 'src/components/mc/ui.tsx', 'src/components/mc/task-views.tsx', 'src/components/mc/legacy-banner.tsx'];
   for (const f of files) {
     const text = await src(f);
     assert.doesNotMatch(text, /^["']use client["']/m, f);
@@ -135,11 +135,14 @@ test('shell keeps login and embed exceptions and offers assignment entry', async
   assert.match(tasks, /capability\("task\.create"\)/);
 });
 
-test('Home shows the bridge setup card and unknown totals rather than zero counts', async () => {
+test('Home shows the bridge setup notice and unknown totals rather than zero counts when disconnected', async () => {
   const home = await src('src/app/page.tsx');
-  assert.match(home, /Mac execution bridge is not connected/);
-  assert.match(home, /displayTotal\(taskState, undefined\)/);
-  for (const href of ['/tasks', '/approvals', '/workflows', '/settings#connections', '/today']) assert.ok(home.includes(`"${href}`), href);
+  assert.match(home, /<BridgeNotice failure=\{list\}/);
+  assert.match(home, /resolveViewState\(\{ source: taskSrc \}\)/, 'failed reads resolve to a non-countable state');
+  const views = await src('src/components/mc/task-views.tsx');
+  assert.ok(views.includes('"/settings#connections"'));
+  for (const href of ['/tasks', '/approvals', '/workflows', '/today']) assert.ok(home.includes(`"${href}`), href);
+  for (const state of ['not_connected', 'offline', 'unverified', 'error']) assert.equal(displayTotal(state, 7), 'Unknown', state);
 });
 
 test('middleware, auth and Mailchimp schedule endpoint are untouched by this phase', async () => {
