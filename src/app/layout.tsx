@@ -11,7 +11,7 @@ const geistSans = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Hermi Dashboard",
+  title: "Mission Control",
   description: "Dream House Lending Mission Control dashboard for Fonz.",
   applicationName: "Hermi Dashboard",
   manifest: "/manifest.webmanifest",
@@ -31,7 +31,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={cn("dark font-sans", geistSans.variable)}>
-      <body className="antialiased bg-[#0A0A0A] text-white/90">
+      <body className="antialiased bg-background text-foreground">
         <AppShell>{children}</AppShell>
       </body>
     </html>

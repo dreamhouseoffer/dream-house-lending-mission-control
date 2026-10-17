@@ -206,19 +206,23 @@ test('source contains no private inventory identifiers', async () => {
   }
 });
 
-test('sidebar promotes Headquarters on desktop and mobile and brands to it', async () => {
+test('navigation keeps Headquarters and retained modules reachable on desktop and mobile', async () => {
+  // Nav is defined once in the Mission Control nav model and rendered by the sidebar for both rails.
+  const { MODULE_NAV, CORE_NAV } = await import('../src/lib/mission-control/capabilities.mjs');
   const sidebar = await src('src/components/sidebar.tsx');
-  assert.match(sidebar, /href: "\/headquarters", label: "headquarters"/);
-  assert.match(sidebar, /<Link href="\/headquarters"/);
-  for (const href of ['"/"', '"/pipeline"', '"/tasks"', '"/milo-approvals"', '"/ask"']) assert.ok(sidebar.includes(`href: ${href}`));
+  assert.match(sidebar, /CORE_NAV/);
+  assert.match(sidebar, /MODULE_NAV/);
+  assert.match(sidebar, /<Link href="\/"/);
+  const hrefs = [...CORE_NAV, ...MODULE_NAV.flatMap((g) => g.items)].map((i) => i.href);
+  for (const href of ['/headquarters', '/', '/pipeline', '/tasks', '/milo-approvals', '/ask']) assert.ok(hrefs.includes(href), href);
 });
 
-test('/projects bookmark redirects server-side to /headquarters', async () => {
+test('/projects bookmark redirects server-side to the new Home', async () => {
   const page = await src('src/app/projects/page.tsx');
   assert.doesNotMatch(page, /^["']use client["']/m);
   assert.match(page, /export const dynamic = "force-dynamic"/);
   assert.match(page, /import \{ redirect \} from "next\/navigation"/);
-  assert.match(page, /redirect\("\/headquarters"\)/);
+  assert.match(page, /redirect\("\/"\)/);
 });
 
 test('original Projects page is preserved verbatim at /projects/legacy and linked from archive', async () => {
@@ -227,8 +231,8 @@ test('original Projects page is preserved verbatim at /projects/legacy and linke
   const ORIGINAL_PROJECTS_SHA256 = '6577fc60b4685070daff494ec5d528bbd066ce64821e4d3272f87a0f4c469c50';
   const legacy = await readFile(join(ROOT, 'src/app/projects/legacy/page.tsx'));
   assert.equal(createHash('sha256').update(legacy).digest('hex'), ORIGINAL_PROJECTS_SHA256);
-  const sidebar = await src('src/components/sidebar.tsx');
-  assert.match(sidebar, /href: "\/projects\/legacy", label: "projects"/);
-  assert.doesNotMatch(sidebar, /href: "\/projects",/);
-  assert.match(sidebar, /href: "\/", label: "today"/);
+  const nav = await src('src/lib/mission-control/capabilities.mjs');
+  assert.match(nav, /href: "\/projects\/legacy", label: "Projects \(legacy\)"/);
+  assert.doesNotMatch(nav, /href: "\/projects",/);
+  assert.match(nav, /href: "\/today", label: "Today \(legacy\)"/);
 });
