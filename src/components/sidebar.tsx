@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useNav } from "@/components/nav-context";
-import { CORE_NAV, MODULE_NAV, SOURCES, navItemFor, sourceStateLabel } from "@/lib/mission-control/capabilities.mjs";
+import { CORE_NAV, MODULE_NAV, navItemFor } from "@/lib/mission-control/capabilities.mjs";
 
 const ICONS: Record<string, LucideIcon> = {
   home: Home,
@@ -97,14 +97,13 @@ function Brand({ closeButton }: { closeButton?: React.ReactNode }) {
 }
 
 function BridgeStatus() {
-  const bridge = SOURCES.bridge;
   return (
     <Link href="/settings#connections" className="block rounded-lg border border-slate-800 bg-slate-900 p-3 hover:border-slate-600">
       <p className="flex items-center gap-2 text-xs font-medium text-slate-300">
         <PlugZap size={14} className="text-slate-500" aria-hidden />
-        {bridge.label}
+        Connection status
       </p>
-      <p className="mt-1 text-xs text-slate-500">{sourceStateLabel(bridge.state)} — task execution unavailable</p>
+      <p className="mt-1 text-xs text-slate-500">Capabilities and connections → Settings</p>
     </Link>
   );
 }

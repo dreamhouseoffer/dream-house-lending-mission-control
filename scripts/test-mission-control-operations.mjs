@@ -250,3 +250,10 @@ test('Agents, Workflows and Settings render bridge reads with no fake controls, 
   assert.match(settings, /Recovery after a Mac reboot is not checked/);
   assert.match(settings, /Budgets, spend limits and provider usage are not checked/);
 });
+
+test('sidebar footnote links to Settings without a hardcoded bridge state or "unavailable" claim', async () => {
+  const sidebar = await src('src/components/sidebar.tsx');
+  assert.match(sidebar, /href="\/settings#connections"/);
+  assert.match(sidebar, /Capabilities and connections → Settings/);
+  assert.doesNotMatch(sidebar, /SOURCES\.bridge|sourceStateLabel|task execution unavailable|Not connected/);
+});
