@@ -10,6 +10,7 @@ import {
   checkTaskDetail,
   checkTaskList,
   readBridgeConfig,
+  submitTask,
 } from "./bridge-client.mjs";
 
 export type BridgeFailure = { ok: false; state: string; code: string };
@@ -31,7 +32,12 @@ export type BridgeRun = Record<string, string | number | boolean | null>;
 export type TaskList = { tasks: BridgeTask[]; observedAt: string };
 export type TaskDetail = { task: BridgeTask; runs: BridgeRun[]; events: BridgeRun[]; latestSummary: string | null; observedAt: string };
 export type RunList = { taskId: string; runs: BridgeRun[]; observedAt: string };
-export type Capabilities = { ops: string[]; unsupported: Record<string, string>; readOnly: boolean };
+export type TaskTemplate = { id: string; label: string; description: string; body: string; assignee: string };
+export type Capabilities = { ops: string[]; unsupported: Record<string, string>; readOnly: boolean; assignees: string[] | null; templates: TaskTemplate[] };
+export type CreatePayload = { title: string; body: string; assignee: string };
+export type CreateResult =
+  | { outcome: "accepted"; task: BridgeTask; deduplicated: boolean; observedAt: string | null }
+  | { outcome: "rejected" | "conflict" | "ambiguous" | "unconfirmed" | "unavailable"; code: string };
 
 export async function hasControlAccess(): Promise<boolean> {
   return hasHeadquartersAccess();
@@ -83,4 +89,16 @@ const HTTP_FOR: Record<string, number> = {
 
 export function failureHttpStatus(state: string): number {
   return HTTP_FOR[state] ?? 502;
+}
+
+/**
+ * Submit one already-validated template payload. Callers must have checked the session, same-origin and the payload
+ * against freshly read capabilities. Never caches; never logs.
+ */
+export async function createTask(payload: CreatePayload, key: string): Promise<CreateResult> {
+  noStore();
+  const config = readBridgeConfig({ url: process.env.MC_BRIDGE_URL, secret: process.env.MC_BRIDGE_SECRET });
+  if (!config.configured) return { outcome: "unavailable", code: config.reason ?? "not_configured" };
+  if (!(await hasControlAccess())) return { outcome: "unavailable", code: "unauthenticated" };
+  return (await submitTask(config, payload, key)) as CreateResult;
 }

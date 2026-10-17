@@ -5,6 +5,7 @@
 import { createHash, createHmac, randomBytes } from "node:crypto";
 import http from "node:http";
 import https from "node:https";
+import { IDEMPOTENCY_KEY_RE, checkTemplates, createCapability } from "./task-submit.mjs";
 
 export const TASK_ID_RE = /^t_[0-9a-f]{6,32}$/;
 export const NONCE_RE = /^[A-Za-z0-9_-]{16,128}$/;
@@ -155,13 +156,16 @@ const METHODS = new Set(["GET", "POST"]);
  * @param {{ configured: boolean, origin?: string, secret?: Buffer, reason?: string }} config
  * @param {"GET" | "POST"} method
  * @param {string} target path + query, already encoded
- * @param {{ body?: unknown, acceptStatus?: number[], transport?: Function, now?: () => number, timeoutMs?: number, maxBytes?: number, nonce?: string }} [options]
+ * @param {{ body?: unknown, acceptStatus?: number[], transport?: Function, now?: () => number, timeoutMs?: number, maxBytes?: number, nonce?: string, idempotencyKey?: string }} [options]
  */
-export async function bridgeRequest(config, method, target, { body, acceptStatus = [200], transport = nodeTransport, now = Date.now, timeoutMs = DEFAULT_TIMEOUT_MS, maxBytes = MAX_RESPONSE_BYTES, nonce = newNonce() } = {}) {
+export async function bridgeRequest(config, method, target, { body, acceptStatus = [200], transport = nodeTransport, now = Date.now, timeoutMs = DEFAULT_TIMEOUT_MS, maxBytes = MAX_RESPONSE_BYTES, nonce = newNonce(), idempotencyKey } = {}) {
   if (!config || !config.configured) return failure("not_configured", config?.reason ?? "not_configured");
   if (!METHODS.has(method)) return failure("error", "invalid_method");
   if (typeof target !== "string" || !target.startsWith("/v0/")) return failure("error", "invalid_target");
   if (!NONCE_RE.test(nonce)) return failure("error", "invalid_nonce");
+  if (idempotencyKey !== undefined && (method !== "POST" || typeof idempotencyKey !== "string" || !IDEMPOTENCY_KEY_RE.test(idempotencyKey))) {
+    return failure("error", "invalid_idempotency_key");
+  }
   let bytes = Buffer.alloc(0);
   if (method === "POST") {
     let json;
@@ -186,6 +190,7 @@ export async function bridgeRequest(config, method, target, { body, acceptStatus
   if (method === "POST") {
     headers["content-type"] = "application/json";
     headers["content-length"] = String(bytes.length);
+    if (idempotencyKey) headers["idempotency-key"] = idempotencyKey;
   }
   let res;
   try {
@@ -323,7 +328,8 @@ export function checkCapabilities(data) {
   const unsupported = isObj(data.unsupported)
     ? Object.fromEntries(Object.entries(data.unsupported).filter(([, v]) => typeof v === "string").slice(0, 50))
     : {};
-  return { ops, unsupported, readOnly: data.read_only };
+  const assignees = Array.isArray(data.assignees) ? data.assignees.filter((a) => typeof a === "string").slice(0, 50) : null;
+  return { ops, unsupported, readOnly: data.read_only, assignees, templates: checkTemplates(data.task_templates) };
 }
 
 // ---- view helpers -----------------------------------------------------------------------------------------
@@ -375,17 +381,56 @@ export function observationState(observedAt, now = Date.now(), staleAfterMs = ST
   return now - t > staleAfterMs ? "stale" : "observed";
 }
 
-/**
- * Task creation stays unavailable in this release even if the bridge allows it: the dashboard has no reviewed
- * submit path yet, so nothing may pretend to submit work.
- */
+/** Creation is enabled only by the bridge's own capabilities: POST allowed, not read-only, and safe templates advertised. */
 export function taskCreateCapability(caps) {
-  if (!caps) return { enabled: false, reason: "Bridge capabilities could not be read, so task creation is unavailable." };
-  const bridgeAllows = caps.ops.includes("POST /v0/tasks") && caps.readOnly === false;
-  if (!bridgeAllows) {
-    return { enabled: false, reason: `The bridge reports task creation is disabled (${caps.unsupported["task.create"] ?? "read-only"}).` };
+  const { enabled, reason } = createCapability(caps);
+  return { enabled, reason };
+}
+
+// ---- task creation ----------------------------------------------------------------------------------------
+
+const CREATE_ACCEPT = [200, 202, 400, 409, 413, 415];
+
+/**
+ * Classify the bridge's answer to POST /v0/tasks. Anything that may have created a task but cannot be proven is
+ * "ambiguous"/"unconfirmed", never "rejected": a malformed success body is NOT a failure.
+ * @param {number} status
+ * @param {unknown} data
+ * @param {{ title: string, assignee: string }} expected
+ */
+export function checkCreateResponse(status, data, expected) {
+  if (status === 200 || status === 202) {
+    const task = isObj(data) && data.submitted === true ? checkTask(data.task) : null;
+    if (!task || task.title !== expected.title || task.assignee !== expected.assignee) return { outcome: "ambiguous", code: "unverifiable_acceptance" };
+    return { outcome: "accepted", task, deduplicated: data.deduplicated === true, observedAt: checkIso(data.observed_at) };
   }
-  return { enabled: false, reason: "The bridge allows creation, but dashboard submission is not implemented in this release." };
+  const error = isObj(data) && typeof data.error === "string" ? data.error.slice(0, 64) : "unknown";
+  if (status === 409) {
+    if (error === "idempotency_conflict") return { outcome: "conflict", code: error };
+    return { outcome: "ambiguous", code: error === "create_outcome_ambiguous" || error === "idempotency_task_mismatch" ? error : "conflict_unrecognised" };
+  }
+  // 400/413/415: the bridge parses and validates before reserving the key, so nothing was created.
+  return { outcome: "rejected", code: error };
+}
+
+/**
+ * Signed POST /v0/tasks with the exact {title, body, assignee} payload and Idempotency-Key. Never throws.
+ * Connection refused / auth failures cannot have created anything; timeouts, dropped connections and 5xx might
+ * have, so they come back "unconfirmed" (same-key retry is safe because the bridge dedupes on the key).
+ */
+export async function submitTask(config, payload, key, options = {}) {
+  const res = await bridgeRequest(config, "POST", "/v0/tasks", {
+    ...options,
+    body: { title: payload.title, body: payload.body, assignee: payload.assignee },
+    idempotencyKey: key,
+    acceptStatus: CREATE_ACCEPT,
+  });
+  if (!res.ok) {
+    if (res.state === "not_configured" || res.code === "refused" || res.state === "unauthorized") return { outcome: "unavailable", code: res.code };
+    if (res.state === "error" && /^invalid_|request_too_large/.test(res.code)) return { outcome: "rejected", code: res.code };
+    return { outcome: "unconfirmed", code: res.code };
+  }
+  return checkCreateResponse(res.status, res.data, payload);
 }
 
 export const FAILURE_COPY = {

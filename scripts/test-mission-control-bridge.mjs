@@ -230,14 +230,17 @@ test('default transport against a synthetic loopback server: exact Host, no brow
   assert.equal(refused.state, 'offline');
 });
 
-test('task creation stays unavailable even when the bridge allows it', () => {
+test('task creation is enabled only by bridge capabilities with advertised safe templates', () => {
   assert.equal(taskCreateCapability(null).enabled, false);
   const ro = taskCreateCapability(checkCapabilities({ ops: ['GET /v0/tasks'], unsupported: { 'task.create': 'disabled: read-only' }, read_only: true }));
   assert.equal(ro.enabled, false);
   assert.match(ro.reason, /read-only/);
   const rw = taskCreateCapability(checkCapabilities({ ops: ['GET /v0/tasks', 'POST /v0/tasks'], unsupported: {}, read_only: false }));
-  assert.equal(rw.enabled, false);
-  assert.match(rw.reason, /not implemented/);
+  assert.equal(rw.enabled, false, 'no templates advertised -> still disabled');
+  assert.match(rw.reason, /no safe task templates/);
+  const tpl = { id: 'system_health', label: 'Health', description: 'Read-only check.', body: 'mc-template:system_health/v1', assignee: 'mc-runner' };
+  const ok = taskCreateCapability(checkCapabilities({ ops: ['POST /v0/tasks'], unsupported: {}, read_only: false, assignees: ['mc-runner'], task_templates: [tpl] }));
+  assert.deepEqual(ok, { enabled: true, reason: null });
   assert.equal(checkCapabilities({ ops: 'x' }), null);
 });
 
@@ -251,11 +254,12 @@ test('server-only wrapper reads non-public env, never caches or logs, and routes
   for (const [f, text] of [['bridge.ts', wrapper], ['bridge-client.mjs', client]]) {
     assert.doesNotMatch(text, /NEXT_PUBLIC|console\.|^["']use client["']/m, f);
   }
-  for (const r of ['src/app/api/control/tasks/route.ts', 'src/app/api/control/tasks/[id]/route.ts', 'src/app/api/control/tasks/[id]/runs/route.ts']) {
+  for (const r of ['src/app/api/control/tasks/route.ts', 'src/app/api/control/tasks/[id]/route.ts', 'src/app/api/control/tasks/[id]/runs/route.ts', 'src/app/api/control/capabilities/route.ts']) {
     const text = await src(r);
     assert.match(text, /if \(!\(await hasControlAccess\(\)\)\)[^\n]*status: 401/, r);
     assert.match(text, /"Cache-Control": "no-store"/, r);
-    assert.doesNotMatch(text, /export async function (POST|PUT|PATCH|DELETE)/, r);
+    // Only the task list route may mutate (capability-gated POST, covered in test-mission-control-submit.mjs).
+    assert.doesNotMatch(text, r.endsWith('control/tasks/route.ts') ? /export async function (PUT|PATCH|DELETE)/ : /export async function (POST|PUT|PATCH|DELETE)/, r);
     assert.doesNotMatch(text, /process\.env|console\./, r);
   }
   for (const f of ['src/app/tasks/[id]/page.tsx', 'src/components/mc/task-views.tsx']) {
@@ -267,7 +271,7 @@ test('server-only wrapper reads non-public env, never caches or logs, and routes
 
 test('Home and Tasks read real records when available and are not hardcoded to permanent disconnection', async () => {
   const home = await src('src/app/page.tsx');
-  assert.match(home, /await readTasks\(\)/);
+  assert.match(home, /await Promise\.all\(\[readTasks\(\), readCapabilities\(\)\]\)/);
   assert.match(home, /displayTotal\(taskState, counts\?\.running\)/);
   assert.match(home, /displayTotal\(approvalState, undefined\)/, 'approvals stay unknown: ledger not exposed');
   assert.match(home, /<BridgeNotice failure=\{list\}/);

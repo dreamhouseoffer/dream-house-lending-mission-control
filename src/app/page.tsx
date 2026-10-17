@@ -2,16 +2,18 @@ import type { Metadata } from "next";
 import agentStatus from "@/data/agent-status.json";
 import { McPage, ModuleLink, PageHeader, Section, SourceNote, StatTile, StateNotice } from "@/components/mc/ui";
 import { BridgeNotice, TaskList, taskSource } from "@/components/mc/task-views";
+import { TaskCreateForm } from "@/components/mc/task-create-form";
 import { SOURCES, capability, displayTotal, resolveViewState, scheduleRows } from "@/lib/mission-control/capabilities.mjs";
 import { countByBucket, formatTime, lastTouched } from "@/lib/mission-control/bridge-client.mjs";
-import { readTasks } from "@/lib/mission-control/bridge";
+import { readCapabilities, readTasks } from "@/lib/mission-control/bridge";
+import { createCapability, publicTemplates } from "@/lib/mission-control/task-submit.mjs";
 
 export const metadata: Metadata = { title: "Home · Mission Control" };
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const list = await readTasks();
+  const [list, caps] = await Promise.all([readTasks(), readCapabilities()]);
   const tasks = list.ok ? list.tasks : null;
   const taskSrc = taskSource(list);
   // Unconfigured/offline/failed reads resolve to not_connected/offline/unverified, so every total below is "Unknown".
@@ -28,7 +30,7 @@ export default async function HomePage() {
   const schedules = scheduleRows(agentStatus);
   const scheduleState = resolveViewState({ source: SOURCES.schedules, items: schedules });
   const erroring = schedules.filter((s) => s.status === "erroring");
-  const assign = capability("task.create");
+  const assign = caps.ok ? createCapability(caps) : caps.state === "not_configured" ? { ...capability("task.create"), templates: [] } : createCapability(null);
 
   return (
     <McPage>
@@ -84,9 +86,12 @@ export default async function HomePage() {
             </p>
           </div>
         </Section>
+        <Section title="Run a safe task" href="/tasks#assign" hrefLabel="All task options">
+          <TaskCreateForm enabled={assign.enabled} reason={assign.reason} templates={publicTemplates(assign.templates)} idPrefix="home-assign" />
+        </Section>
         <Section title="Next actions">
           <div className="space-y-2">
-            <ModuleLink href="/tasks#assign" title="Draft an assignment" description={assign.enabled ? "Send work to Hermes." : "Composer is visible; sending from the dashboard is not available in this release."} />
+            <ModuleLink href="/tasks#assign" title="Submit a safe task" description={assign.enabled ? "Submit a safe pre-approved task. Free-form instructions are not available." : "Unavailable right now; the reason is shown on the Tasks page."} />
             <ModuleLink href="/pipeline" title="Check the loan pipeline" description="Retained Airtable-backed pipeline module." />
             <ModuleLink href="/ask" title="Ask Hermes" description="Retained question-and-answer module." />
             <ModuleLink href="/headquarters" title="Review Headquarters inventory" description="Private systems map and readiness snapshot." />

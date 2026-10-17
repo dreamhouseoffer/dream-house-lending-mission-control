@@ -10,7 +10,7 @@
     "test:ask-hermes": "node scripts/test-ask-hermes-core.mjs",
     "test:headquarters": "node --test scripts/test-headquarters.mjs",
     "test:headquarters:ui": "node --test scripts/test-headquarters-ui.mjs",
-    "test:mission-control": "node --test scripts/test-mission-control.mjs scripts/test-mission-control-bridge.mjs scripts/test-mission-control-auth.mjs",
+    "test:mission-control": "node --test scripts/test-mission-control.mjs scripts/test-mission-control-bridge.mjs scripts/test-mission-control-auth.mjs scripts/test-mission-control-submit.mjs",
     "import:headquarters": "node scripts/import-headquarters-snapshot.mjs"
   },
   "dependencies": {

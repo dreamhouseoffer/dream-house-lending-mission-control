@@ -1,8 +1,10 @@
 import type { Metadata } from "next";
-import { DisabledAction, FilterLinks, McPage, ModuleLink, PageHeader, Section, SourceNote, StateNotice, StatusChip } from "@/components/mc/ui";
+import { FilterLinks, McPage, ModuleLink, PageHeader, Section, SourceNote, StateNotice, StatusChip } from "@/components/mc/ui";
 import { BridgeNotice, TaskList, taskSource } from "@/components/mc/task-views";
+import { TaskCreateForm } from "@/components/mc/task-create-form";
 import { TASK_STATUSES, capability, parseTaskStatus } from "@/lib/mission-control/capabilities.mjs";
-import { filterTasks, taskCreateCapability } from "@/lib/mission-control/bridge-client.mjs";
+import { filterTasks } from "@/lib/mission-control/bridge-client.mjs";
+import { SAFE_CAPABILITY_COPY, createCapability, publicTemplates } from "@/lib/mission-control/task-submit.mjs";
 import { readCapabilities, readTasks } from "@/lib/mission-control/bridge";
 
 export const metadata: Metadata = { title: "Tasks · Mission Control" };
@@ -13,8 +15,9 @@ export default async function TasksPage({ searchParams }: { searchParams: { stat
   const statusDef = TASK_STATUSES.find((s) => s.id === status);
   const q = typeof searchParams.q === "string" ? searchParams.q.slice(0, 100) : "";
   const [list, caps] = await Promise.all([readTasks(), readCapabilities()]);
-  // Creation stays unavailable: statically when the bridge is unconfigured, otherwise from the bridge's own capabilities.
-  const create = caps.ok ? taskCreateCapability(caps) : caps.state === "not_configured" ? capability("task.create") : taskCreateCapability(null);
+  // Creation is gated by the bridge's own capabilities (POST allowed, not read-only, safe templates advertised);
+  // statically unavailable when the bridge is unconfigured. The POST route re-checks all of this server-side.
+  const create = caps.ok ? createCapability(caps) : caps.state === "not_configured" ? { ...capability("task.create"), templates: [] } : createCapability(null);
   const shown = list.ok ? filterTasks(list.tasks, { status, q }) : [];
 
   return (
@@ -26,23 +29,11 @@ export default async function TasksPage({ searchParams }: { searchParams: { stat
       />
       <SourceNote source={taskSource(list)} />
 
-      <Section id="assign" title="New assignment" description="Describe the work for Hermes. Nothing is saved or sent from this release.">
-        <form className="space-y-3" aria-describedby="assign-reason">
-          <label htmlFor="assignment" className="sr-only">
-            Assignment
-          </label>
-          <textarea
-            id="assignment"
-            name="assignment"
-            rows={4}
-            disabled={!create.enabled}
-            placeholder="e.g. Summarize yesterday's pipeline changes into a three-line note"
-            className="w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-600 focus:border-teal-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
-          />
-          <div id="assign-reason">
-            <DisabledAction label="Send to Hermes" reason={create.reason ?? ""} />
-          </div>
-        </form>
+      <Section id="assign" title="New assignment" description="Submit a safe, pre-approved task to Hermes on the Mac. Status and results below come only from the Hermes board.">
+        <div className="space-y-3">
+          <p className="text-xs leading-5 text-slate-400">{SAFE_CAPABILITY_COPY}</p>
+          <TaskCreateForm enabled={create.enabled} reason={create.reason} templates={publicTemplates(create.templates)} />
+        </div>
       </Section>
 
       <Section title="Task list" description="Filter by lifecycle status or search by id, title, owner or description.">
