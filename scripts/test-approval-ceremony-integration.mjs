@@ -2,9 +2,12 @@
 // test-owner WebAuthn signature -> challenge decision -> exact replay -> logout revocation refusal, against the private
 // bridge's NODE_TEST_CONTEXT-only ceremony harness (createCeremonyTestBridge). Production stays disabled:
 //   - createCeremonyTestBridge throws outside `node --test`; the production createBridge refuses any ceremony config.
-//   - that harness deliberately advertises NO approval_ceremony block, so the app adapter fails closed against it
-//     (asserted below). Only THIS harness's loopback capability shim adds a SYNTHETIC advertisement, tagged
-//     `synthetic_harness_injected`, so the app's reviewed gate can be exercised end to end. No real bridge says this.
+//   - the app talks to that harness DIRECTLY (no proxy, no injected capabilities). The harness itself advertises the
+//     reviewed approval_ceremony block and the app's unmodified gate is asserted to accept it.
+//   - fail closed: a second `next start` against a production createBridge (approvals on, no ceremony; it still
+//     advertises the legacy decision op and no block) answers 503 ceremony_unavailable and logout revokes nothing;
+//     the real harness advertisement is refused without the owner opt-in, for a different canonical host, and when
+//     tampered (legacy op re-added, block removed, legacy decision enabled). Nothing fakes a positive advertisement.
 //   - the signing key is an in-memory SYNTHETIC test key with a reserved .invalid rp_id. It is never enrolled, written
 //     to disk or configured in a live bridge, and none of this is live-human approval proof.
 // Isolation: approved scratch only, loopback ephemeral ports, fresh scratch SQLite, SYNTHETIC fake `hermes` CLI (no
@@ -71,40 +74,36 @@ process.stdout.write(JSON.stringify({ task: t, latest_summary: null, events: [],
   return file;
 }
 
-// Loopback capability shim between the app and the harness bridge. Everything is forwarded byte for byte (HMAC is
-// over method/target/ts/nonce/body, so it is unaffected); only the Host header is set to the bridge's own, and — while
-// `inject` is true — the GET /v0/capabilities answer gains the SYNTHETIC ceremony advertisement.
-function capabilityShim(bridgePort, limits) {
-  const state = { inject: true, calls: [] };
-  const server = http.createServer((req, res) => {
-    const chunks = [];
-    req.on("data", (c) => chunks.push(c));
-    req.on("end", () => {
-      state.calls.push(`${req.method} ${req.url}`);
-      const up = http.request({ host: "127.0.0.1", port: bridgePort, method: req.method, path: req.url, setHost: false,
-        headers: { ...req.headers, host: `127.0.0.1:${bridgePort}` } }, (r) => {
-        const out = [];
-        r.on("data", (c) => out.push(c));
-        r.on("end", () => {
-          let body = Buffer.concat(out);
-          if (state.inject && req.method === "GET" && req.url === "/v0/capabilities" && r.statusCode === 200) {
-            const caps = JSON.parse(body.toString("utf8"));
-            caps.ops = [...caps.ops, "POST /v0/approvals/:id/owner-challenges", "POST /v0/approvals/:id/owner-challenges/:challenge_id/decision", "POST /v0/sessions/revoke"];
-            caps.approval_ceremony = { synthetic_harness_injected: true, mode: "challenge_only", version: 1, legacy_decision: "disabled",
-              session_revocation: "durable", owner_enrollment: { kind: "webauthn_pinned", credentials: 1, rp_id: RP_ID },
-              issue_rate_limit: { window_seconds: limits.windowSeconds, max_per_session: limits.maxPerSession } };
-            body = Buffer.from(JSON.stringify(caps));
-          }
-          const headers = { ...r.headers, "content-length": String(body.length) };
-          res.writeHead(r.statusCode, headers);
-          res.end(body);
-        });
-      });
-      up.on("error", () => { res.writeHead(502); res.end(); });
-      up.end(Buffer.concat(chunks));
-    });
+// Passive observer on a bridge's own http.Server: records method + path of every request it receives. It never
+// touches the request or the response.
+function recordRequests(bridge) {
+  const calls = [];
+  bridge.server.on("request", (req) => calls.push(`${req.method} ${req.url}`));
+  return calls;
+}
+
+// `next start` on a loopback ephemeral port, pointed straight at `bridgeUrl`, with its own PIN/session secret.
+async function startNext(dir, tag, bridgeUrl, bridgeSecret) {
+  const pin = randomBytes(9).toString("base64url");
+  const port = await new Promise((resolve) => { const s = http.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => resolve(p)); }); });
+  const log = openSync(path.join(dir, `next-start-${tag}.log`), "a");
+  const child = spawn(path.join(ROOT, "node_modules/.bin/next"), ["start", "-H", "127.0.0.1", "-p", String(port)], {
+    cwd: ROOT,
+    env: { PATH: process.env.PATH, HOME: dir, TMPDIR: dir, NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1",
+      MISSION_CONTROL_PIN: pin, MISSION_CONTROL_SESSION_SECRET: randomBytes(48).toString("base64url"),
+      MISSION_CONTROL_CANONICAL_ORIGIN: CANONICAL, MISSION_CONTROL_APPROVAL_CEREMONY: "challenge_only_v1",
+      MC_BRIDGE_URL: bridgeUrl, MC_BRIDGE_SECRET: bridgeSecret },
+    stdio: ["ignore", log, log],
+    detached: true,
   });
-  return new Promise((resolve) => server.listen(0, "127.0.0.1", () => resolve({ state, port: server.address().port, close: () => new Promise((r) => server.close(r)) })));
+  const stop = async () => {
+    if (child.exitCode !== null) return;
+    const exited = new Promise((r) => child.once("exit", r));
+    try { process.kill(-child.pid, "SIGTERM"); } catch {}
+    await Promise.race([exited, new Promise((r) => setTimeout(r, 3000))]);
+    try { if (child.exitCode === null) process.kill(-child.pid, "SIGKILL"); } catch {}
+  };
+  return { pin, child, stop, base: `http://127.0.0.1:${port}`, selfOrigin: `http://localhost:${port}` };
 }
 
 async function waitReady(base, child, timeoutMs = 60_000) {
@@ -145,52 +144,50 @@ test("Gate3 local ceremony integration over real Next HTTP (SYNTHETIC, productio
   // Production entry point still refuses the ceremony outright.
   assert.throws(() => createBridge(bridgeOpts("prod.db", approvalsCfg)), /approvals\.ceremony is not available/);
 
+  // Every owned server is stopped in reverse creation order, whatever fails.
+  const owned = [];
+  t.after(async () => { for (const stop of owned.reverse()) await stop(); });
   const bridge = createCeremonyTestBridge(bridgeOpts("bridge-SYNTHETIC.db", approvalsCfg));
+  owned.push(() => bridge.close());
+  const bridgeCalls = recordRequests(bridge);
   const bridgePort = await bridge.listen(0);
-  const shim = await capabilityShim(bridgePort, limits);
-  const { bridgeRequest, readBridgeConfig } = await import(pathToFileURL(path.join(ROOT, "src/lib/mission-control/bridge-client.mjs")).href);
+  // Production entry point with approvals on but no ceremony key: no ceremony routes and no block are exposed.
+  const { ceremony: _ceremony, ...prodApprovalsCfg } = approvalsCfg;
+  const prodBridge = createBridge(bridgeOpts("prod-no-ceremony-SYNTHETIC.db", prodApprovalsCfg));
+  owned.push(() => prodBridge.close());
+  const prodCalls = recordRequests(prodBridge);
+  const prodPort = await prodBridge.listen(0);
+  const { bridgeGet, bridgeRequest, readBridgeConfig } = await import(pathToFileURL(path.join(ROOT, "src/lib/mission-control/bridge-client.mjs")).href);
+  const { CEREMONY_OPS, LEGACY_DECISION_OP, ceremonyAvailability, checkCeremonyCapability } =
+    await import(pathToFileURL(path.join(ROOT, "src/lib/mission-control/approval-ceremony.mjs")).href);
   const { SESSION_COOKIE } = await import(pathToFileURL(path.join(ROOT, "src/lib/auth/session.mjs")).href);
   const direct = readBridgeConfig({ url: `http://127.0.0.1:${bridgePort}`, secret: bridgeSecret });
+  const prodDirect = readBridgeConfig({ url: `http://127.0.0.1:${prodPort}`, secret: bridgeSecret });
 
-  const pin = randomBytes(9).toString("base64url");
-  const port = await new Promise((resolve) => { const s = http.createServer(); s.listen(0, "127.0.0.1", () => { const p = s.address().port; s.close(() => resolve(p)); }); });
-  const base = `http://127.0.0.1:${port}`;
-  const selfOrigin = `http://localhost:${port}`;
-  const child = spawn(path.join(ROOT, "node_modules/.bin/next"), ["start", "-H", "127.0.0.1", "-p", String(port)], {
-    cwd: ROOT,
-    env: { PATH: process.env.PATH, HOME: dir, TMPDIR: dir, NODE_ENV: "production", NEXT_TELEMETRY_DISABLED: "1",
-      MISSION_CONTROL_PIN: pin, MISSION_CONTROL_SESSION_SECRET: randomBytes(48).toString("base64url"),
-      MISSION_CONTROL_CANONICAL_ORIGIN: CANONICAL, MISSION_CONTROL_APPROVAL_CEREMONY: "challenge_only_v1",
-      MC_BRIDGE_URL: `http://127.0.0.1:${shim.port}`, MC_BRIDGE_SECRET: bridgeSecret },
-    stdio: ["ignore", openSync(path.join(dir, "next-start.log"), "a"), openSync(path.join(dir, "next-start.log"), "a")],
-    detached: true,
-  });
-  t.after(async () => {
-    if (child.exitCode === null) {
-      try { process.kill(-child.pid, "SIGTERM"); } catch {}
-      await new Promise((r) => setTimeout(r, 1000));
-      try { if (child.exitCode === null) process.kill(-child.pid, "SIGKILL"); } catch {}
-    }
-    await shim.close();
-    await bridge.close();
-  });
-  await waitReady(base, child);
+  const app = await startNext(dir, "harness", `http://127.0.0.1:${bridgePort}`, bridgeSecret);
+  owned.push(app.stop);
+  const appProd = await startNext(dir, "prod-bridge", `http://127.0.0.1:${prodPort}`, bridgeSecret);
+  owned.push(appProd.stop);
+  await Promise.all([waitReady(app.base, app.child), waitReady(appProd.base, appProd.child)]);
+  const { pin, selfOrigin } = app;
 
-  const call = async (method, pathname, { token, origin = CANONICAL, site = "same-origin", body, extraHeaders = {} } = {}) => {
+  const callOn = (srv) => async (method, pathname, { token, origin = CANONICAL, site = "same-origin", body, extraHeaders = {} } = {}) => {
     const headers = { ...extraHeaders };
     if (body !== undefined) headers["content-type"] = "application/json";
     if (token) headers.cookie = `${SESSION_COOKIE}=${token}`;
     if (origin) headers.origin = origin;
     if (site) headers["sec-fetch-site"] = site;
-    const res = await fetch(`${base}${pathname}`, { method, headers, body, redirect: "manual", signal: AbortSignal.timeout(20_000) });
+    const res = await fetch(`${srv.base}${pathname}`, { method, headers, body, redirect: "manual", signal: AbortSignal.timeout(20_000) });
     let json = null;
     try { json = await res.json(); } catch {}
     return { status: res.status, json, location: res.headers.get("location"), setCookie: res.headers.getSetCookie?.() ?? [] };
   };
+  const call = callOn(app);
+  const callProd = callOn(appProd);
   const seq = { n: 0 };
-  const seedApproval = async () => {
+  const seedApproval = async (cfg = direct) => {
     seq.n += 1;
-    const r = await bridgeRequest(direct, "POST", "/v0/approvals", { acceptStatus: [201], idempotencyKey: `gate3-seed-${String(seq.n).padStart(8, "0")}`,
+    const r = await bridgeRequest(cfg, "POST", "/v0/approvals", { acceptStatus: [201], idempotencyKey: `gate3-seed-${String(seq.n).padStart(8, "0")}`,
       body: { task_id: TASK_ID, artifact_id: `art-synthetic-${seq.n}`, content: `SYNTHETIC no-send draft ${seq.n}`, action: "publish",
         destination: "test-sink:synthetic-no-send", max_cost_cents: 0, not_before: iso(-1000), expires_at: iso(3_600_000), requested_by: "agent-synthetic" } });
     assert.ok(r.ok, JSON.stringify(r));
@@ -201,6 +198,50 @@ test("Gate3 local ceremony integration over real Next HTTP (SYNTHETIC, productio
     destination: a.destination, max_cost_cents: a.max_cost_cents, not_before: a.not_before, expires_at: a.expires_at });
   const routes = (id) => ({ view: `/api/control/approvals/${id}`, issue: `/api/control/approvals/${id}/challenge`, decide: `/api/control/approvals/${id}/decision` });
   const assertions = () => bridge.db.prepare("SELECT COUNT(*) n FROM owner_assertions").get().n;
+
+  // ---- the harness's own advertisement is the exact reviewed block, and the app's unmodified gate accepts it ----
+  const caps = await bridgeGet(direct, "/v0/capabilities");
+  assert.ok(caps.ok, JSON.stringify(caps));
+  assert.deepEqual(caps.data.approval_ceremony, { mode: "challenge_only", version: 1, legacy_decision: "disabled", session_revocation: "durable",
+    owner_enrollment: { kind: "webauthn_pinned", credentials: 1, rp_id: RP_ID },
+    issue_rate_limit: { window_seconds: limits.windowSeconds, max_per_session: limits.maxPerSession } });
+  for (const op of Object.values(CEREMONY_OPS)) assert.equal(caps.data.ops.filter((o) => o === op).length, 1, op);
+  assert.ok(!caps.data.ops.includes(LEGACY_DECISION_OP));
+  assert.deepEqual(checkCeremonyCapability(caps.data, { canonicalHost: RP_ID }), { available: true, rpId: RP_ID });
+  const ceremonyEnv = { MISSION_CONTROL_APPROVAL_CEREMONY: "challenge_only_v1", MISSION_CONTROL_CANONICAL_ORIGIN: CANONICAL };
+  assert.deepEqual(await ceremonyAvailability({ env: ceremonyEnv, bridgeConfig: direct }), { available: true, rpId: RP_ID, origin: CANONICAL });
+
+  // ---- fail closed: the same real advertisement without opt-in, for another host, or tampered; the production bridge ----
+  const reasonFor = async (env, cfg = direct) => (await ceremonyAvailability({ env, bridgeConfig: cfg })).reason;
+  assert.equal(await reasonFor({ MISSION_CONTROL_CANONICAL_ORIGIN: CANONICAL }), "ceremony_not_enabled");
+  assert.equal(await reasonFor({ ...ceremonyEnv, MISSION_CONTROL_CANONICAL_ORIGIN: "https://other.integration.invalid" }), "owner_rp_id_mismatch");
+  const tampered = (edit) => { const c = structuredClone(caps.data); edit(c); return checkCeremonyCapability(c, { canonicalHost: RP_ID }).reason; };
+  assert.equal(tampered((c) => c.ops.push(LEGACY_DECISION_OP)), "legacy_decision_still_advertised");
+  assert.equal(tampered((c) => { delete c.approval_ceremony; }), "ceremony_not_advertised");
+  assert.equal(tampered((c) => { c.approval_ceremony.legacy_decision = "enabled"; }), "legacy_decision_not_disabled");
+  assert.equal(tampered((c) => { delete c.approval_ceremony.issue_rate_limit; }), "issue_rate_limit_missing");
+  const prodCaps = await bridgeGet(prodDirect, "/v0/capabilities");
+  assert.ok(prodCaps.ok && !Object.hasOwn(prodCaps.data, "approval_ceremony") && prodCaps.data.ops.includes(LEGACY_DECISION_OP));
+  assert.equal(await reasonFor(ceremonyEnv, prodDirect), "legacy_decision_still_advertised");
+
+  // Same build over real HTTP against the production bridge: issue/decide refuse 503, logout revokes nothing.
+  const prodLogin = await callProd("POST", "/api/auth/login", { origin: appProd.selfOrigin, body: JSON.stringify({ pin: appProd.pin }) });
+  assert.equal(prodLogin.status, 200);
+  const prodToken = prodLogin.setCookie.find((c) => c.startsWith(`${SESSION_COOKIE}=`)).slice(`${SESSION_COOKIE}=`.length).split(";")[0];
+  const prodApId = await seedApproval(prodDirect);
+  const prodView = await callProd("GET", routes(prodApId).view, { token: prodToken });
+  assert.equal(prodView.status, 200, JSON.stringify(prodView.json));
+  const prodIssue = await callProd("POST", routes(prodApId).issue, { token: prodToken,
+    body: JSON.stringify({ expected: tupleOf(prodView.json.approval), decision: "approve", note: null }) });
+  assert.equal(prodIssue.status, 503); assert.equal(prodIssue.json.code, "ceremony_unavailable");
+  assert.equal(prodIssue.json.reason, "legacy_decision_still_advertised");
+  const prodDecide = await callProd("POST", routes(prodApId).decide, { token: prodToken, body: JSON.stringify({ approval_id: prodApId,
+    challenge_id: `och_${"A".repeat(32)}`, challenge_sha256: "0".repeat(64), payload_b64u: "AA", note: null, assertion: {} }) });
+  assert.equal(prodDecide.status, 503); assert.equal(prodDecide.json.code, "ceremony_unavailable");
+  const prodLogout = await callProd("POST", "/api/auth/logout", { token: prodToken, origin: appProd.selfOrigin });
+  assert.equal(prodLogout.status, 200); assert.equal(prodLogout.json.revocation, "unsupported");
+  assert.ok(!prodCalls.some((c) => /owner-challenges|\/v0\/sessions\/revoke|^POST \/v0\/approvals\/[^/]+\/decision$/.test(c)), JSON.stringify(prodCalls));
+  assert.equal(prodBridge.db.prepare("SELECT status FROM approvals WHERE approval_id=?").get(prodApId).status, "pending");
 
   // ---- login over HTTP: the cookie is the only identity source ----
   const bad = await call("POST", "/api/auth/login", { origin: selfOrigin, body: JSON.stringify({ pin: `${pin}x` }) });
@@ -218,13 +259,6 @@ test("Gate3 local ceremony integration over real Next HTTP (SYNTHETIC, productio
   const viewed = view.json.approval;
   assert.equal(viewed.state, "awaiting_approval");
   const issueBody = JSON.stringify({ expected: tupleOf(viewed), decision: "approve", note: "SYNTHETIC gate3 approval" });
-
-  // ---- fail closed against the reviewed harness as-is (no advertisement) ----
-  shim.state.inject = false;
-  const notAdvertised = await call("POST", r1.issue, { token, body: issueBody });
-  assert.equal(notAdvertised.status, 503);
-  assert.equal(notAdvertised.json.code, "ceremony_unavailable");
-  shim.state.inject = true;
 
   // ---- refusals before anything is issued ----
   const unauth = await call("POST", r1.issue, { body: issueBody });
@@ -301,6 +335,9 @@ test("Gate3 local ceremony integration over real Next HTTP (SYNTHETIC, productio
   assert.equal(assertions(), 1);
 
   // ---- boundary: legacy decision never called, native CLI only ever read (no create/assign/send) ----
-  assert.ok(!shim.state.calls.some((c) => /^POST \/v0\/approvals\/[^/]+\/decision$/.test(c)), "legacy decision route never called");
+  for (const re of [/^POST \/v0\/approvals\/[^/]+\/owner-challenges$/, /^POST \/v0\/approvals\/[^/]+\/owner-challenges\/[^/]+\/decision$/, /^POST \/v0\/sessions\/revoke$/]) {
+    assert.ok(bridgeCalls.some((c) => re.test(c)), `app reached the harness directly: ${re}`);
+  }
+  assert.ok(!bridgeCalls.some((c) => /^POST \/v0\/approvals\/[^/]+\/decision$/.test(c)), "legacy decision route never called");
   assert.ok(nativeCalls().every((argv) => argv[0] === "kanban" && argv[1] === "show" && argv[2] === TASK_ID), JSON.stringify(nativeCalls()));
 });

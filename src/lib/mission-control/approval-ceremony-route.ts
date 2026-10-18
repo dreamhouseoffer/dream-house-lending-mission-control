@@ -5,7 +5,7 @@ import { unstable_noStore as noStore } from "next/cache";
 import { cookies, headers } from "next/headers";
 import { SESSION_COOKIE } from "@/lib/auth/session.mjs";
 import { readBridgeConfig } from "./bridge-client.mjs";
-import { handleChallengeDecision, handleChallengeIssue, revokeSessionOnLogout } from "./approval-ceremony.mjs";
+import { ceremonyAvailability, handleChallengeDecision, handleChallengeIssue, revokeSessionOnLogout } from "./approval-ceremony.mjs";
 
 type Result = { status: number; body: Record<string, unknown> };
 
@@ -31,6 +31,20 @@ export async function ceremonyRoute(kind: "issue" | "decide", approvalId: string
     bridgeConfig: bridgeConfig(),
   };
   return (kind === "issue" ? handleChallengeIssue(input) : handleChallengeDecision(input)) as Promise<Result>;
+}
+
+// Panel gate input for the owner-challenge UI: only the availability verdict plus the public canonical origin and
+// rp_id leave the server. No session, binding, credential or bridge detail is exposed.
+export type PanelAvailability = { available: true; rpId: string; origin: string } | { available: false; reason: string };
+
+export async function ceremonyPanelAvailability(): Promise<PanelAvailability> {
+  noStore();
+  try {
+    const a = (await ceremonyAvailability({ env: ceremonyEnv(), bridgeConfig: bridgeConfig() })) as PanelAvailability;
+    return a.available ? { available: true, rpId: a.rpId, origin: a.origin } : { available: false, reason: a.reason };
+  } catch {
+    return { available: false, reason: "ceremony_unavailable" };
+  }
 }
 
 export async function revokeOnLogout(token: string | undefined): Promise<string> {

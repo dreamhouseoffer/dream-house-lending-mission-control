@@ -435,3 +435,244 @@ test('static: adapter never names the legacy decision path as a target, routes s
   assert.match(logout, /maxAge: 0/);
   for (const p of ['src/app/approvals/page.tsx']) assert.ok(!/\/challenge|\/decision/.test(await src(p)), p);
 });
+
+// ---------- Gate6: browser owner-challenge panel logic (SYNTHETIC; no real authenticator) ----------
+
+const ui = await import('../src/lib/mission-control/owner-challenge-ui.mjs');
+const { checkApproval } = await import('../src/lib/mission-control/approvals-client.mjs');
+const CRED = Buffer.alloc(32, 7).toString('base64url');
+const AVAIL = { available: true, rpId: HOST, origin: ORIGIN };
+const LOC = { origin: ORIGIN, hostname: HOST };
+const BROWSER = { secureContext: true, publicKeyCredential: true, credentialsGet: true };
+const viewed = (o = {}) => checkApproval(approval(o));
+
+/** A SYNTHETIC stand-in for navigator.credentials.get(): records options, answers a fixed-shape credential. */
+function fakeCredential({ challengeSha256, origin = ORIGIN, rawId = Buffer.from(CRED, 'base64url'), type = 'public-key' }) {
+  const ab = (b) => b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength);
+  const cd = Buffer.from(JSON.stringify({ type: 'webauthn.get', challenge: Buffer.from(challengeSha256, 'hex').toString('base64url'), origin, crossOrigin: false }));
+  return { type, rawId: ab(rawId), response: { clientDataJSON: ab(cd), authenticatorData: ab(Buffer.alloc(37, 1)), signature: ab(Buffer.alloc(70, 2)) } };
+}
+
+test('panel b64u: canonical unpadded round trip; padding, non-alphabet and non-canonical text refused', () => {
+  for (const n of [0, 1, 2, 3, 31, 32, 33, 70000]) {
+    const b = Buffer.from(Array.from({ length: n }, (_, i) => (i * 37) & 255));
+    const e = ui.b64uEncode(new Uint8Array(b));
+    assert.equal(e, b.toString('base64url'));
+    assert.deepEqual(Buffer.from(ui.b64uDecode(e)), b);
+  }
+  assert.equal(ui.b64uEncode(new Uint8Array([1, 2]).buffer), 'AQI');
+  for (const bad of ['AQI=', 'AQ+I', 'AQ/I', 'A', 'AR', 'AQJ', ' AQI', null, 7]) assert.equal(ui.b64uDecode(bad), null, String(bad));
+  assert.equal(ui.b64uEncode('not bytes'), null);
+});
+
+test('panel gate: disabled unless server availability, canonical origin, matching rp_id and WebAuthn support all hold', () => {
+  const g = (o = {}) => ui.panelGate({ server: AVAIL, location: LOC, browser: BROWSER, ...o });
+  assert.deepEqual(g(), { enabled: true, rpId: HOST, origin: ORIGIN });
+  assert.equal(ui.panelGate().reason, 'ceremony_not_enabled');
+  assert.equal(g({ server: { available: false, reason: 'ceremony_not_enabled' } }).reason, 'ceremony_not_enabled');
+  assert.equal(g({ server: { available: false, reason: 'legacy_decision_still_advertised' } }).reason, 'legacy_decision_still_advertised');
+  assert.match(g({ server: { available: false, reason: 'bridge_offline' } }).message, /could not be reached/);
+  assert.equal(g({ server: { available: true, rpId: 'other.invalid', origin: ORIGIN } }).reason, 'owner_rp_id_mismatch');
+  assert.equal(g({ server: { available: true, rpId: HOST, origin: 'http://mc.test.invalid' } }).reason, 'origin_invalid');
+  assert.equal(g({ server: { available: true, rpId: HOST, origin: `${ORIGIN}/x` } }).reason, 'origin_invalid');
+  assert.equal(g({ server: { available: true, origin: ORIGIN } }).reason, 'ceremony_not_advertised');
+  assert.equal(g({ location: { origin: 'https://preview.test.invalid', hostname: 'preview.test.invalid' } }).reason, 'canonical_origin_mismatch');
+  assert.equal(g({ location: { origin: ORIGIN, hostname: 'evil.invalid' } }).reason, 'rp_id_mismatch');
+  for (const k of Object.keys(BROWSER)) assert.equal(g({ browser: { ...BROWSER, [k]: false } }).reason, 'webauthn_unsupported', k);
+  for (const r of ['ceremony_not_enabled', 'canonical_origin_mismatch', 'rp_id_mismatch', 'webauthn_unsupported']) assert.ok(ui.GATE_COPY[r]);
+});
+
+test('panel eligibility: only a pending latest-version approval inside its window is decidable', () => {
+  assert.deepEqual(ui.approvalEligibility(viewed(), NOW), { eligible: true });
+  assert.equal(ui.approvalEligibility(viewed({ state: 'authorized_not_executed', status: 'approved' }), NOW).reason, 'approval_not_pending');
+  assert.equal(ui.approvalEligibility(viewed({ state: 'stale' }), NOW).reason, 'approval_not_pending');
+  assert.equal(ui.approvalEligibility(viewed({ artifact: { ...approval().artifact, is_latest: false, latest_version: 3 } }), NOW).reason, 'artifact_not_latest');
+  assert.equal(ui.approvalEligibility(viewed(), Date.parse('2026-10-17T13:00:00Z')).reason, 'approval_expired');
+  assert.equal(ui.approvalEligibility(viewed(), Date.parse('2026-10-17T10:00:00Z')).reason, 'approval_not_yet_open');
+  assert.equal(ui.approvalEligibility(null, NOW).reason, 'approval_unreadable');
+  assert.match(ui.approvalEligibility(viewed({ state: 'authorized_not_executed' }), NOW).message, /authorized, not executed/);
+});
+
+test('panel note: blank is null, revise requires a note, control characters and over-long notes refused', () => {
+  assert.deepEqual(ui.normalizeNote('approve', '   '), { ok: true, note: null });
+  assert.deepEqual(ui.normalizeNote('approve', 'ok'), { ok: true, note: 'ok' });
+  assert.equal(ui.normalizeNote('revise', '').code, 'revision_note_required');
+  assert.equal(ui.normalizeNote('approve', 'a\u0007b').code, 'invalid_note');
+  assert.equal(ui.normalizeNote('approve', 'x'.repeat(ui.MAX_NOTE + 1)).code, 'invalid_note');
+  assert.equal(ui.normalizeNote('execute', null).code, 'invalid_decision');
+});
+
+test('panel end to end (SYNTHETIC): UI issue body -> real issue handler -> browser re-check -> get() options -> serialized assertion -> real decision handler', async () => {
+  const t = await token();
+  const a = viewed();
+  // Issue: the panel body has exactly the adapter keys and no identity claim; the real handler accepts it.
+  const issueText = ui.buildIssueBody(a, 'approve', null);
+  assert.deepEqual(Object.keys(JSON.parse(issueText)), ['expected', 'decision', 'note']);
+  assert.ok(!/session|human|principal|credential|rp_id|owner/.test(issueText.replace(/"requested_by"/, '')), issueText);
+  const b = bridge({
+    'GET /v0/capabilities': [200, CAPS],
+    [`GET /v0/approvals/${AP}`]: [200, { approval: approval(), observed_at: '2026-10-17T12:00:00Z' }],
+    [`POST /v0/approvals/${AP}/owner-challenges`]: (call) => {
+      const p = payloadFor(call.json.session_sha256, { credential_id: CRED });
+      return [200, { challenge: { challenge_id: OCH, challenge_sha256: sha256(p), payload_b64u: p.toString('base64url'), approval_id: AP, row_version: 3, owner_assurance: false } }];
+    },
+    [`POST /v0/approvals/${AP}/owner-challenges/${OCH}/decision`]: [200, { approval: approval({ state: 'authorized_not_executed', status: 'approved', owner_verified: true, approver: 'owner' }), deduplicated: false }],
+  });
+  const issued = await handleChallengeIssue({ env, headers: SAME, token: t, approvalId: AP, bridgeConfig, transport: b.transport, now: NOW, bodyText: issueText });
+  const ic = ui.classifyIssueResponse({ status: issued.status, data: issued.body });
+  assert.equal(ic.outcome, 'issued', JSON.stringify(issued.body));
+
+  // The browser re-derives the exact signed terms from the issued bytes before any gesture.
+  const v = await ui.verifyIssuedChallenge(ic.challenge, { approval: a, decision: 'approve', note: null, rpId: HOST, now: NOW });
+  assert.equal(v.ok, true, JSON.stringify(v));
+  assert.equal(v.terms.destination, 'synthetic://sink');
+  assert.equal(v.terms.action, 'publish_demo');
+  assert.deepEqual(v.terms.artifact, { id: 'art_demo', version: 2, sha256: SHA });
+  assert.equal(v.terms.decision, 'approve');
+  const opts = ui.requestOptions(v, NOW);
+  assert.equal(Buffer.from(opts.challenge).toString('hex'), ic.challenge.challenge_sha256);
+  assert.equal(opts.rpId, HOST);
+  assert.equal(opts.userVerification, 'required');
+  assert.deepEqual(opts.allowCredentials.map((c) => [c.type, Buffer.from(c.id).toString('base64url')]), [['public-key', CRED]]);
+  assert.equal(opts.timeout, 120_000);
+  assert.ok(!('user' in opts) && !('pubKeyCredParams' in opts), 'request options only; never create()');
+
+  // SYNTHETIC get() answer -> canonical serialization -> exact decide body -> real decision handler.
+  const s = ui.serializeAssertion(fakeCredential({ challengeSha256: v.challenge.challenge_sha256 }), v.terms.credential_id);
+  assert.equal(s.ok, true);
+  assert.deepEqual(Object.keys(s.assertion), ['credential_id', 'client_data_json', 'authenticator_data', 'signature']);
+  for (const x of Object.values(s.assertion)) assert.match(x, /^[A-Za-z0-9_-]+$/);
+  const decideText = ui.buildDecideBody(v.challenge, null, s.assertion);
+  assert.deepEqual(Object.keys(JSON.parse(decideText)), ['approval_id', 'challenge_id', 'challenge_sha256', 'payload_b64u', 'note', 'assertion']);
+  const decided = await handleChallengeDecision({ env, headers: SAME, token: t, approvalId: AP, bridgeConfig, transport: b.transport, now: NOW, bodyText: decideText });
+  const dc = ui.classifyDecideResponse({ status: decided.status, data: decided.body });
+  assert.equal(dc.outcome, 'decided', JSON.stringify(decided.body));
+  const copy = ui.decisionResultCopy(dc.approval);
+  assert.equal(copy.title, 'Approved: authorized, not executed');
+  assert.match(copy.detail, /not connected/);
+  assert.ok(!b.calls.some((c) => c.target === `/v0/approvals/${AP}/decision`), 'legacy decision route never called');
+  assert.deepEqual(b.calls.filter((c) => c.method === 'POST').map((c) => c.target), [`/v0/approvals/${AP}/owner-challenges`, `/v0/approvals/${AP}/owner-challenges/${OCH}/decision`]);
+});
+
+test('panel re-check: tampered, mismatched or expired issued challenges never reach a gesture', async () => {
+  const a = viewed();
+  const mk = (payload = {}, o = {}) => {
+    const p = payloadFor('c'.repeat(64), { credential_id: CRED, ...payload });
+    const h = sha256(p);
+    return { challenge_id: OCH, challenge_sha256: h, payload_b64u: p.toString('base64url'), webauthn_challenge_b64u: Buffer.from(h, 'hex').toString('base64url'), rp_id: HOST, approval_id: AP, row_version: 3, ...o };
+  };
+  const check = (c, ctx = {}) => ui.verifyIssuedChallenge(c, { approval: a, decision: 'approve', note: null, rpId: HOST, now: NOW, ...ctx });
+  assert.equal((await check(mk())).ok, true);
+  assert.equal((await check(mk({ destination: 'synthetic://elsewhere' }))).code, 'challenge_terms_mismatch');
+  assert.equal((await check(mk({ artifact_sha256: 'c'.repeat(64) }))).code, 'challenge_terms_mismatch');
+  assert.equal((await check(mk({ decision: 'reject' }))).code, 'challenge_terms_mismatch');
+  assert.equal((await check(mk(), { note: 'a note the owner typed' })).code, 'challenge_terms_mismatch');
+  assert.equal((await check(mk({ rp_id: 'other.invalid' }))).code, 'challenge_terms_mismatch');
+  assert.equal((await check(mk(), { rpId: 'other.invalid' })).code, 'challenge_mismatch');
+  assert.equal((await check(mk({}, { challenge_sha256: 'd'.repeat(64) }))).code, 'challenge_mismatch');
+  assert.equal((await check(mk({}, { webauthn_challenge_b64u: 'AAAA' }))).code, 'challenge_mismatch');
+  assert.equal((await check(mk({}, { row_version: 4 }))).code, 'challenge_mismatch');
+  assert.equal((await check(mk({}, { challenge_id: 'och_short' }))).code, 'challenge_malformed');
+  assert.equal((await check(mk({}, { payload_b64u: 'AAAA=' }))).code, 'challenge_malformed');
+  assert.equal((await check(mk({ credential_id: 'cred_demo' }))).code, 'credential_id_unusable');
+  assert.equal((await check(mk(), { now: NOW + 121_000 })).code, 'challenge_expired');
+  // A note is bound by digest: the same note verifies.
+  const noteSha = sha256(Buffer.from('keep it', 'utf8'));
+  assert.equal((await check(mk({ note_sha256: noteSha }), { note: 'keep it' })).ok, true);
+});
+
+test('panel assertion: only a public-key credential for the pinned id serializes', () => {
+  const h = 'e'.repeat(64);
+  assert.equal(ui.serializeAssertion(fakeCredential({ challengeSha256: h }), CRED).ok, true);
+  assert.equal(ui.serializeAssertion(fakeCredential({ challengeSha256: h, rawId: Buffer.alloc(32, 9) }), CRED).code, 'credential_mismatch');
+  assert.equal(ui.serializeAssertion(fakeCredential({ challengeSha256: h, type: 'password' }), CRED).code, 'assertion_unusable');
+  assert.equal(ui.serializeAssertion(null, CRED).code, 'assertion_unusable');
+  assert.equal(ui.serializeAssertion({ type: 'public-key', rawId: new ArrayBuffer(32), response: { clientDataJSON: 'x' } }, CRED).code, 'assertion_unusable');
+});
+
+test('panel outcomes: cancel/error mapping; only exact success shapes count; unconfirmed decisions retry the same body', () => {
+  for (const name of ['AbortError', 'NotAllowedError']) assert.equal(ui.classifyWebAuthnError(Object.assign(new Error('x'), { name })).outcome, 'cancelled');
+  assert.equal(ui.classifyWebAuthnError(Object.assign(new Error('x'), { name: 'SecurityError' })).outcome, 'blocked');
+  assert.equal(ui.classifyWebAuthnError(Object.assign(new Error('x'), { name: 'NotSupportedError' })).outcome, 'unsupported');
+  assert.equal(ui.classifyWebAuthnError('boom').outcome, 'error');
+  for (const n of ['AbortError', 'NotAllowedError', 'SecurityError', 'TypeError']) assert.match(ui.classifyWebAuthnError(Object.assign(new Error(), { name: n })).message, /Nothing was signed or sent/);
+
+  assert.equal(ui.classifyIssueResponse({ status: 200, data: { ok: true, state: 'challenge_issued', challenge: {}, owner_assurance: true } }).outcome, 'refused');
+  assert.equal(ui.classifyIssueResponse({ status: 401, data: { code: 'reauth_required' } }).outcome, 'reauth');
+  assert.deepEqual(ui.classifyIssueResponse({ status: 429, data: { code: 'issue_rate_limited', retry_after: 30 } }).retryAfter, 30);
+  assert.equal(ui.classifyIssueResponse({ status: 409, data: { code: 'terms_changed' } }).outcome, 'stale');
+  assert.equal(ui.classifyIssueResponse({ status: 503, data: { code: 'ceremony_unavailable' } }).outcome, 'unavailable');
+  assert.equal(ui.classifyIssueResponse({ network: true }).outcome, 'error');
+
+  const ok = { ok: true, state: 'decided', approval: viewed({ state: 'rejected' }), replay: true };
+  assert.equal(ui.classifyDecideResponse({ status: 200, data: ok }).outcome, 'decided');
+  assert.equal(ui.classifyDecideResponse({ status: 200, data: { ...ok, replay: undefined } }).outcome, 'unconfirmed');
+  assert.equal(ui.classifyDecideResponse({ status: 502, data: { code: 'schema_mismatch' } }).outcome, 'unconfirmed');
+  assert.equal(ui.classifyDecideResponse({ network: true }).outcome, 'unconfirmed');
+  assert.equal(ui.classifyDecideResponse({ status: 403, data: { code: 'session_revoked' } }).outcome, 'refused');
+  assert.equal(ui.classifyDecideResponse({ status: 409, data: { code: 'challenge_expired' } }).outcome, 'stale');
+  assert.equal(ui.classifyDecideResponse({ status: 503, data: { code: 'ceremony_unavailable' } }).outcome, 'unavailable');
+
+  for (const state of ['authorized_not_executed', 'rejected', 'revision_requested', 'executing', 'weird']) {
+    const c = ui.decisionResultCopy({ state });
+    assert.ok(!/\b(executed|sent|published|delivered)\b/i.test(c.title.replace('not executed', '')), c.title);
+    assert.match(c.detail, /External execution is not connected/);
+  }
+});
+
+test('panel outcomes: a decide 503 is definite only when known pre-send; post-send timeout/reset/503/504 stay unconfirmed', async () => {
+  // Ambiguous: the real decision handler hands the signed POST to the transport, which then fails (SYNTHETIC).
+  const f = await decideFixture();
+  const cases = [
+    ['timeout', async () => { throw Object.assign(new Error('timeout'), { code: 'timeout' }); }, 'bridge_offline'],
+    ['reset', async () => { throw Object.assign(new Error('reset'), { code: 'ECONNRESET' }); }, 'bridge_offline'],
+    ['504', async () => ({ status: 504, contentType: 'application/json', body: Buffer.from('{}') }), 'bridge_hermes_unavailable'],
+    ['503', async () => ({ status: 503, contentType: 'application/json', body: Buffer.from('{}') }), 'bridge_hermes_unavailable'],
+  ];
+  for (const [name, fail, code] of cases) {
+    const b = bridge({ 'GET /v0/capabilities': [200, CAPS], [`POST /v0/approvals/${AP}/owner-challenges/${OCH}/decision`]: () => [200, {}] });
+    const transport = async (req) => (req.method === 'POST' ? (await b.transport(req), fail()) : b.transport(req));
+    const r = await decide({ token: f.t, transport, bodyText: f.bodyText });
+    assert.deepEqual([r.status, r.body.code], [503, code], name);
+    assert.equal(b.calls.filter((c) => c.method === 'POST').length, 1, `${name}: signed POST was sent`);
+    const c = ui.classifyDecideResponse({ status: r.status, data: r.body });
+    assert.equal(c.outcome, 'unconfirmed', name);
+    assert.match(c.message, /Retry the same signed decision/, name);
+    assert.doesNotMatch(c.message, /Nothing was approved/, name);
+  }
+  // An unknown 503 (new code or no body) may have applied too.
+  assert.equal(ui.classifyDecideResponse({ status: 503, data: { code: 'bridge_something_new' } }).outcome, 'unconfirmed');
+  assert.equal(ui.classifyDecideResponse({ status: 503, data: null }).outcome, 'unconfirmed');
+
+  // Definite: refused before any decision POST.
+  const pre = bridge({ 'GET /v0/capabilities': [200, CAPS] });
+  const off = async (req) => { pre.calls.push(req); throw Object.assign(new Error('x'), { code: 'ECONNREFUSED' }); };
+  const u = await decide({ token: f.t, transport: off, bodyText: f.bodyText });
+  assert.deepEqual([u.status, u.body.code], [503, 'ceremony_unavailable']);
+  assert.ok(!pre.calls.some((c) => c.method === 'POST'));
+  assert.equal(ui.classifyDecideResponse({ status: u.status, data: u.body }).outcome, 'unavailable');
+  assert.equal(ui.classifyDecideResponse({ status: 503, data: { code: 'bridge_not_configured' } }).outcome, 'unavailable');
+});
+
+test('static: panel is browser-safe, gated, calls only the reviewed routes, never enrolls or names identity claims', async () => {
+  const lib = await src('src/lib/mission-control/owner-challenge-ui.mjs');
+  assert.ok(!/from ["']node:|require\(|process\.env|console\./.test(lib));
+  assert.ok(!/credentials\.create|publicKey:\s*\{[^}]*user/.test(lib));
+  const panel = await src('src/components/mc/owner-challenge-panel.tsx');
+  assert.match(panel, /^"use client";/);
+  assert.ok(!/approval-ceremony|bridge-client|approvals-client|process\.env|MC_BRIDGE/.test(panel), 'no server module or secret in the client');
+  assert.ok(!/credentials\.create|localStorage|sessionStorage/.test(panel));
+  assert.ok(!/session_sha256|"human"|principal|owner_verified/.test(panel));
+  const posts = [...panel.matchAll(/postJson\(`([^`]+)`/g)].map((m) => m[1]);
+  assert.deepEqual(posts, ['/api/control/approvals/${approvalId}/challenge', '/api/control/approvals/${approvalId}/decision']);
+  assert.match(panel, /panelGate\(/);
+  assert.match(panel, /approvalEligibility\(/);
+  assert.match(panel, /inflight\.current/);
+  assert.match(panel, /AbortController/);
+  const page = await src('src/app/approvals/[id]/page.tsx');
+  assert.match(page, /ceremonyPanelAvailability\(\)/);
+  assert.match(page, /hasControlAccess\(\)/);
+  assert.ok(!/\/challenge|\/decision|process\.env/.test(page));
+  const route = await src('src/lib/mission-control/approval-ceremony-route.ts');
+  assert.match(route, /available: true, rpId: a\.rpId, origin: a\.origin/);
+});

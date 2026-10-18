@@ -8,10 +8,10 @@
 //      mode challenge_only v1, legacy decision disabled AND the legacy decision op absent from `ops`, at least one
 //      pinned WebAuthn owner credential whose rp_id is the canonical app host, durable session revocation, a
 //      bridge-side issue rate limit, and every fixed ceremony op below.
-// The production bridge advertises none of this today (the issue/decision/revoke routes exist only in its
-// NODE_TEST_CONTEXT ceremony harness, which also advertises no ceremony block), so this build performs no challenge,
+// The production bridge advertises none of this today: the issue/decision/revoke routes and this block exist only in
+// its NODE_TEST_CONTEXT ceremony harness (createCeremonyTestBridge), so a production build performs no challenge,
 // decision or revocation call in practice. The opt-in local integration test (test-approval-ceremony-integration)
-// exercises these handlers over real Next HTTP against that harness. See GATE3-SESSION-INTEGRATION-CHECKPOINT.md.
+// exercises these handlers over real Next HTTP directly against that harness's own advertisement.
 //
 // What the app adds (and the bridge still re-checks authoritatively):
 //   - owner identity/session binding ONLY from the verified signed cookie (guardApprovalRequest, ceremony mode:
