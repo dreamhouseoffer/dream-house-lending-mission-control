@@ -313,23 +313,35 @@ async function decideFixture(o = {}, { payload = {}, cd = {} } = {}) {
 }
 const decide = async (o = {}) => handleChallengeDecision({ env, headers: SAME, approvalId: AP, bridgeConfig, now: NOW, ...o });
 
-test('decision: fixed challenge path only, binding from cookie, verifier-shaped assertion, no app idempotency key, never the legacy route', async () => {
+test('decision: fixed challenge path only, binding from cookie, terms from issued payload, challenge-derived idempotency key, never the legacy route', async () => {
   const f = await decideFixture();
   const b = bridge({
     'GET /v0/capabilities': [200, CAPS],
-    [`POST /v0/owner-challenges/${OCH}/decision`]: [200, { approval: approval({ state: 'authorized_not_executed', status: 'approved', owner_verified: true }), replay: false }],
+    [`POST /v0/approvals/${AP}/owner-challenges/${OCH}/decision`]: [200, { approval: approval({ state: 'authorized_not_executed', status: 'approved', owner_verified: true }), deduplicated: false }],
   });
   const r = await decide({ token: f.t, transport: b.transport, bodyText: f.bodyText });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(r.body.approval.external_execution, 'not_connected');
+  assert.equal(r.body.replay, false);
   const post = b.calls.find((c) => c.method === 'POST');
-  assert.equal(post.target, `/v0/owner-challenges/${OCH}/decision`);
-  assert.equal(post.headers['idempotency-key'], undefined);
+  assert.equal(post.target, `/v0/approvals/${AP}/owner-challenges/${OCH}/decision`);
+  assert.equal(post.headers['idempotency-key'], `och-decide-${OCH}`);
   assert.equal(post.json.session_sha256, await binding(f.t));
-  assert.deepEqual(Object.keys(post.json).sort(), ['approval_id', 'assertion', 'challenge_sha256', 'note', 'session_sha256']);
+  // Exactly the bridge's Gate2 DECIDE_KEYS; decision and artifact pin come from the issued payload bytes.
+  assert.deepEqual(Object.keys(post.json).sort(), ['artifact_sha256', 'artifact_version', 'decision', 'note', 'owner_assertion', 'session_sha256']);
+  const issued = JSON.parse(f.p.toString('utf8'));
+  assert.equal(post.json.decision, issued.decision);
+  assert.equal(post.json.artifact_version, issued.artifact_version);
+  assert.equal(post.json.artifact_sha256, issued.artifact_sha256);
   // Exactly the private verifier's raw assertion keys, with the issued payload bytes verbatim.
-  assert.deepEqual(Object.keys(post.json.assertion).sort(), ['authenticator_data', 'client_data_json', 'credential_id', 'payload', 'signature']);
-  assert.equal(post.json.assertion.payload, f.p.toString('base64url'));
+  assert.deepEqual(Object.keys(post.json.owner_assertion).sort(), ['authenticator_data', 'client_data_json', 'credential_id', 'payload', 'signature']);
+  assert.equal(post.json.owner_assertion.payload, f.p.toString('base64url'));
+  // A bridge answer without the boolean deduplicated flag is a schema mismatch, not a decision.
+  const legacyShape = bridge({
+    'GET /v0/capabilities': [200, CAPS],
+    [`POST /v0/approvals/${AP}/owner-challenges/${OCH}/decision`]: [200, { approval: approval({ state: 'authorized_not_executed', status: 'approved', owner_verified: true }), replay: false }],
+  });
+  assert.equal((await decide({ token: f.t, transport: legacyShape.transport, bodyText: f.bodyText })).body.code, 'schema_mismatch');
   assert.ok(!b.calls.some((c) => c.target === `/v0/approvals/${AP}/decision`));
 });
 
@@ -354,7 +366,7 @@ test('decision: payload/session/note/credential/clientData pre-checks refuse bef
 });
 
 test('decision: shape refusals and bridge refusals pass through as codes only', async () => {
-  const b = bridge({ 'GET /v0/capabilities': [200, CAPS], [`POST /v0/owner-challenges/${OCH}/decision`]: [409, { error: 'challenge_replayed' }] });
+  const b = bridge({ 'GET /v0/capabilities': [200, CAPS], [`POST /v0/approvals/${AP}/owner-challenges/${OCH}/decision`]: [409, { error: 'challenge_replayed' }] });
   const f = await decideFixture();
   const code = async (o) => (await decide({ token: f.t, transport: b.transport, bodyText: JSON.stringify({ ...f.body, ...o }) })).body.code;
   assert.equal(await code({ challenge_id: 'och_short' }), 'invalid_challenge_id');

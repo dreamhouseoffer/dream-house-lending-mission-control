@@ -8,9 +8,10 @@
 //      mode challenge_only v1, legacy decision disabled AND the legacy decision op absent from `ops`, at least one
 //      pinned WebAuthn owner credential whose rp_id is the canonical app host, durable session revocation, a
 //      bridge-side issue rate limit, and every fixed ceremony op below.
-// The private bridge exposes none of this today (owner-challenges.js is not reachable over HTTP), so this build
-// performs no challenge, decision or revocation call in practice. See APPROVALS-SESSION-ADAPTER-CHECKPOINT.md for
-// the private wiring contract.
+// The production bridge advertises none of this today (the issue/decision/revoke routes exist only in its
+// NODE_TEST_CONTEXT ceremony harness, which also advertises no ceremony block), so this build performs no challenge,
+// decision or revocation call in practice. The opt-in local integration test (test-approval-ceremony-integration)
+// exercises these handlers over real Next HTTP against that harness. See GATE3-SESSION-INTEGRATION-CHECKPOINT.md.
 //
 // What the app adds (and the bridge still re-checks authoritatively):
 //   - owner identity/session binding ONLY from the verified signed cookie (guardApprovalRequest, ceremony mode:
@@ -46,12 +47,12 @@ export const MAX_CHALLENGE_TTL_S = 300;
 /** Fixed bridge paths. Ids are validated against their regexes before interpolation. */
 export const CEREMONY_OPS = {
   issue: "POST /v0/approvals/:id/owner-challenges",
-  decide: "POST /v0/owner-challenges/:id/decision",
+  decide: "POST /v0/approvals/:id/owner-challenges/:challenge_id/decision",
   revoke: "POST /v0/sessions/revoke",
 };
 export const LEGACY_DECISION_OP = "POST /v0/approvals/:id/decision";
 const issuePath = (approvalId) => `/v0/approvals/${approvalId}/owner-challenges`;
-const decidePath = (challengeId) => `/v0/owner-challenges/${challengeId}/decision`;
+const decidePath = (approvalId, challengeId) => `/v0/approvals/${approvalId}/owner-challenges/${challengeId}/decision`;
 const REVOKE_PATH = "/v0/sessions/revoke";
 
 // Keys a caller must never supply: the server derives the binding and the bridge resolves the pinned principal.
@@ -347,8 +348,10 @@ export async function handleChallengeIssue({ env, token, headers, approvalId, bo
  * cookie session and rp_id, unexpired, matches the note and the asserting credential, and that clientDataJSON is a
  * get() on the canonical origin over sha256(payload); then forwards the verifier's raw assertion shape
  * ({ payload, credential_id, client_data_json, authenticator_data, signature }) to the bridge's challenge-only
- * decision path. The bridge uses the challenge's stored idempotency key; the app sends none. Only the bridge's
- * WebAuthn verifier can make this an owner decision.
+ * decision path. decision/artifact_version/artifact_sha256 come from the sha256-checked issued payload, never from a
+ * separate caller field. The bridge replays on the challenge's stored server idempotency key; its transport still
+ * requires an Idempotency-Key header, so the app sends one derived only from the challenge id (identical on replay).
+ * Only the bridge's WebAuthn verifier can make this an owner decision.
  * @param {{ env: Record<string, string | undefined>, token?: string, headers?: any, approvalId: string, bodyText: string,
  *   bridgeConfig: any, transport?: Function, now?: number }} input
  * @returns {Promise<{ status: number, body: Record<string, unknown> }>}
@@ -369,18 +372,19 @@ export async function handleChallengeDecision({ env, token, headers, approvalId,
   if (p.credential_id !== assertion.credential_id) return refuse(400, "credential_mismatch");
   if (p.exp * 1000 <= now) return refuse(409, "challenge_expired");
   if (!clientDataMatches(assertion.client_data_json, challengeSha256, pre.origin)) return refuse(400, "client_data_mismatch");
-  const res = await bridgeRequest(bridgeConfig, "POST", decidePath(req.value.challenge_id), {
+  const res = await bridgeRequest(bridgeConfig, "POST", decidePath(approvalId, req.value.challenge_id), {
     ...bridgeOpts(transport, now),
     acceptStatus: PASS_STATUS,
+    idempotencyKey: `och-decide-${req.value.challenge_id}`,
     body: {
-      session_sha256: pre.session.sessionSha256, approval_id: approvalId, challenge_sha256: challengeSha256, note,
-      assertion: { payload: payloadB64u, ...assertion },
+      session_sha256: pre.session.sessionSha256, decision: p.decision, note, artifact_version: p.artifact_version,
+      artifact_sha256: p.artifact_sha256, owner_assertion: { payload: payloadB64u, ...assertion },
     },
   });
   if (!res.ok || res.status !== 200) return bridgeRefusal(res);
   const approval = isObj(res.data) ? checkApproval(res.data.approval) : null;
-  if (!approval || approval.approval_id !== approvalId || typeof res.data.replay !== "boolean") return refuse(502, "schema_mismatch");
-  return out(200, { ok: true, state: "decided", approval, replay: res.data.replay });
+  if (!approval || approval.approval_id !== approvalId || typeof res.data.deduplicated !== "boolean") return refuse(502, "schema_mismatch");
+  return out(200, { ok: true, state: "decided", approval, replay: res.data.deduplicated });
 }
 
 /**
