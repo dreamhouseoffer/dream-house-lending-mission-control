@@ -117,6 +117,24 @@ const reject = (reason) => ({ ok: false, reason });
  * @returns {Promise<{ ok: true, claims: { sub: string, iat: number, exp: number } } | { ok: false, reason: string }>}
  */
 export async function verifySessionToken(config, token, { now = Date.now() } = {}) {
+  const r = await verifyFullClaims(config, token, now);
+  return r.ok ? { ok: true, claims: { sub: r.claims.sub, iat: r.claims.iat, exp: r.claims.exp } } : r;
+}
+
+/**
+ * Verify a session cookie and derive the approval session binding from the *verified* claims, server-side only:
+ * session_sha256 = hex(sha256("mc-approval-session:v1\0" + nonce + "\0" + iat)). The nonce itself is never returned,
+ * and the binding is not equivalent to the token (it cannot be replayed as a cookie).
+ * @returns {Promise<{ ok: true, claims: { sub: string, iat: number, exp: number }, sessionSha256: string } | { ok: false, reason: string }>}
+ */
+export async function verifySessionBinding(config, token, { now = Date.now() } = {}) {
+  const r = await verifyFullClaims(config, token, now);
+  if (!r.ok) return r;
+  const digest = await webCrypto().subtle.digest("SHA-256", enc.encode(`mc-approval-session:v1\0${r.claims.nonce}\0${r.claims.iat}`));
+  return { ok: true, claims: { sub: r.claims.sub, iat: r.claims.iat, exp: r.claims.exp }, sessionSha256: toHex(new Uint8Array(digest)) };
+}
+
+async function verifyFullClaims(config, token, now) {
   if (!config || config.ok !== true) return reject("not_configured");
   if (typeof token !== "string" || !token || token.length > MAX_TOKEN_LENGTH) return reject("missing");
   const parts = token.split(".");
@@ -137,7 +155,7 @@ export async function verifySessionToken(config, token, { now = Date.now() } = {
   const t = Math.floor(now / 1000);
   if (claims.iat > t + MAX_SKEW_SECONDS) return reject("not_yet_valid");
   if (claims.exp <= t) return reject("expired");
-  return { ok: true, claims: { sub: claims.sub, iat: claims.iat, exp: claims.exp } };
+  return { ok: true, claims };
 }
 
 /** Constant-time PIN comparison: both sides are hashed to fixed-length digests before an XOR fold. */
