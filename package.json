@@ -11,7 +11,7 @@
     "test:headquarters": "node --test scripts/test-headquarters.mjs",
     "test:headquarters:ui": "node --test scripts/test-headquarters-ui.mjs",
     "test:approval-ceremony:integration": "MC_CEREMONY_LOCAL_INTEGRATION=1 node --test scripts/test-approval-ceremony-integration.mjs",
-    "test:mission-control": "node --test scripts/test-mission-control.mjs scripts/test-mission-control-bridge.mjs scripts/test-mission-control-auth.mjs scripts/test-mission-control-submit.mjs scripts/test-mission-control-operations.mjs scripts/test-mission-control-approvals.mjs scripts/test-mission-control-approval-ceremony.mjs",
+    "test:mission-control": "node --test scripts/test-mission-control.mjs scripts/test-mission-control-bridge.mjs scripts/test-mission-control-auth.mjs scripts/test-mission-control-submit.mjs scripts/test-mission-control-operations.mjs scripts/test-mission-control-approvals.mjs scripts/test-mission-control-approval-ceremony.mjs scripts/test-mission-control-milo.mjs",
     "import:headquarters": "node scripts/import-headquarters-snapshot.mjs"
   },
   "dependencies": {
