@@ -1,4 +1,6 @@
 import { NextResponse } from "next/server";
+import { legacyListUrl, miloHeaders, miloTableUrl, normalizeLegacyRecord } from "@/lib/mission-control/milo-approvals-client.mjs";
+import { miloConfigFromEnv } from "@/lib/mission-control/milo-approvals";
 
 export const dynamic = "force-dynamic";
 
@@ -8,65 +10,14 @@ type AirtableRecord = {
   fields: Record<string, unknown>;
 };
 
-const BASE_ID = process.env.AIRTABLE_BASE_ID || "app9j7s9BTPr8UglD";
-const TABLE_ID = process.env.MILO_APPROVALS_TABLE_ID || "tblMixrIAukHjqBKl";
-
-function getAirtableKey() {
-  return process.env.AIRTABLE_API_KEY || process.env.AIRTABLE_TOKEN || "";
-}
-
-function airtableUrl(recordId?: string) {
-  const base = `https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`;
-  return recordId ? `${base}/${recordId}` : base;
-}
-
-function headers() {
-  const key = getAirtableKey();
-  return {
-    Authorization: `Bearer ${key}`,
-    "Content-Type": "application/json",
-  };
-}
-
-function stringField(fields: Record<string, unknown>, name: string) {
-  const value = fields[name];
-  return typeof value === "string" ? value : "";
-}
-
-function normalizeRecord(record: AirtableRecord) {
-  const fields = record.fields || {};
-  return {
-    id: record.id,
-    createdTime: record.createdTime || "",
-    title: stringField(fields, "Title"),
-    status: stringField(fields, "Status") || "Drafted by Milo",
-    approvalLevel: stringField(fields, "Approval Level") || "YELLOW",
-    category: stringField(fields, "Category"),
-    businessReason: stringField(fields, "Business Reason"),
-    proposedChange: stringField(fields, "Proposed Change"),
-    affectedUrl: stringField(fields, "Affected URL"),
-    evidence: stringField(fields, "Evidence"),
-    riskNote: stringField(fields, "Risk Note"),
-    decision: stringField(fields, "Decision") || "Pending",
-    fonzNotes: stringField(fields, "Fonz Notes"),
-    approvedAt: stringField(fields, "Approved At"),
-  };
-}
-
 export async function GET() {
-  if (!getAirtableKey()) {
+  const config = miloConfigFromEnv();
+  if (!config.configured) {
     return NextResponse.json({ ok: false, error: "Airtable API key is not configured." }, { status: 500 });
   }
 
-  const url = new URL(airtableUrl());
-  url.searchParams.set("pageSize", "100");
-  url.searchParams.set("sort[0][field]", "Status");
-  url.searchParams.set("sort[0][direction]", "asc");
-  url.searchParams.set("sort[1][field]", "Approval Level");
-  url.searchParams.set("sort[1][direction]", "desc");
-
-  const response = await fetch(url.toString(), {
-    headers: headers(),
+  const response = await fetch(legacyListUrl(config).toString(), {
+    headers: miloHeaders(config),
     cache: "no-store",
   });
 
@@ -79,12 +30,13 @@ export async function GET() {
   }
 
   const data = (await response.json()) as { records?: AirtableRecord[] };
-  const approvals = (data.records || []).map(normalizeRecord);
+  const approvals = (data.records || []).map(normalizeLegacyRecord);
   return NextResponse.json({ ok: true, approvals });
 }
 
 export async function PATCH(request: Request) {
-  if (!getAirtableKey()) {
+  const config = miloConfigFromEnv();
+  if (!config.configured) {
     return NextResponse.json({ ok: false, error: "Airtable API key is not configured." }, { status: 500 });
   }
 
@@ -121,9 +73,9 @@ export async function PATCH(request: Request) {
 
   if (notes || action === "notes") fields["Fonz Notes"] = notes;
 
-  const response = await fetch(airtableUrl(id), {
+  const response = await fetch(miloTableUrl(config, id), {
     method: "PATCH",
-    headers: headers(),
+    headers: miloHeaders(config),
     body: JSON.stringify({ fields }),
   });
 
@@ -136,5 +88,5 @@ export async function PATCH(request: Request) {
   }
 
   const record = (await response.json()) as AirtableRecord;
-  return NextResponse.json({ ok: true, approval: normalizeRecord(record) });
+  return NextResponse.json({ ok: true, approval: normalizeLegacyRecord(record) });
 }
