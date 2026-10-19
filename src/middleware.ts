@@ -8,6 +8,9 @@ function isPublicPath(pathname: string, method: string) {
     pathname === "/api/auth/logout" ||
     // Boolean session probe only (GET); it verifies the cookie itself and never issues a session.
     (pathname === "/api/auth/session" && method === "GET") ||
+    // WHOOP's cross-site OAuth redirect (GET, exact path) arrives without the Strict session cookie. The handler binds it
+    // to an authenticated start (bridge state + HttpOnly nonce cookie), mints no session and returns no data.
+    (pathname === "/api/fitness/whoop/callback" && method === "GET") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon") ||
     pathname.startsWith("/robots") ||
