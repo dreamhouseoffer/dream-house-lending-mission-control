@@ -87,8 +87,8 @@ test('schedule snapshot rows derive status and filter by status and name', () =>
   assert.deepEqual(scheduleRows(null), []);
 });
 
-test('core nav is exactly the eight operational pages and every nav target exists', async () => {
-  assert.deepEqual(CORE_NAV.map((i) => i.label), ['Home', 'Tasks', 'Agents', 'Approvals', 'Workflows', 'Content', 'Knowledge', 'Settings']);
+test('core nav is exactly the nine operational pages (Office included) and every nav target exists', async () => {
+  assert.deepEqual(CORE_NAV.map((i) => i.label), ['Home', 'Tasks', 'Agents', 'Office', 'Approvals', 'Workflows', 'Content', 'Knowledge', 'Settings']);
   const items = [...CORE_NAV, ...MODULE_NAV.flatMap((g) => g.items)];
   assert.equal(new Set(items.map((i) => i.href)).size, items.length, 'no duplicate nav targets');
   for (const { href } of items) {

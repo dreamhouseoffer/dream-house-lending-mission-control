@@ -50,8 +50,11 @@ export default async function HomePage() {
           {counts && counts.failed + counts.blocked > 0 && (
             <StateNotice kind="error" title={`${counts.failed} failed and ${counts.blocked} blocked task(s) on the Hermes board`} href="/tasks?status=failed" hrefLabel="Review failed tasks" />
           )}
-          <StateNotice kind="info" title="Milo approvals are reviewed in the retained module" href="/milo-approvals" hrefLabel="Open Milo approvals">
-            Pending Airtable approvals are not summarized here; open the module to see the current queue.
+          <StateNotice kind="info" title="Finished drafts waiting for your review" href="/content#review" hrefLabel="Open Review">
+            Result files (page drafts, training traces, briefs) open in Content. Drafts are not published.
+          </StateNotice>
+          <StateNotice kind="info" title="Milo cards: true state per card" href="/approvals#milo" hrefLabel="Open Milo cards">
+            Approved means permission only; a card shows running only when a linked Hermes task has an open run.
           </StateNotice>
           {erroring.length > 0 && (
             <StateNotice kind="stale" title={`${erroring.length} schedule(s) recorded errors in the last snapshot`} href="/workflows?status=erroring" hrefLabel="Review schedules">

@@ -242,6 +242,7 @@ export const CORE_NAV = [
   { href: "/", label: "Home", icon: "home" },
   { href: "/tasks", label: "Tasks", icon: "tasks" },
   { href: "/agents", label: "Agents", icon: "agents" },
+  { href: "/office", label: "Office", icon: "office" },
   { href: "/approvals", label: "Approvals", icon: "approvals" },
   { href: "/workflows", label: "Workflows", icon: "workflows" },
   { href: "/content", label: "Content", icon: "content" },
@@ -269,7 +270,6 @@ export const MODULE_NAV = [
       { href: "/portfolio", label: "Portfolio" },
       { href: "/vega", label: "Markets" },
       { href: "/body-os", label: "Body OS" },
-      { href: "/office", label: "Office" },
     ],
   },
   {

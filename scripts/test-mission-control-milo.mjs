@@ -179,13 +179,14 @@ test('server wrapper owner-authenticates before reading and is uncached', async 
   assert.ok(!/console\./.test(s));
 });
 
-test('legacy route keeps GET/PATCH semantics', async () => {
+test('legacy route keeps GET and delegates PATCH to the read-before-write decision planner', async () => {
   const s = await src('src/app/api/milo-approvals/route.ts');
   assert.match(s, /export async function GET\(\)/);
   assert.match(s, /export async function PATCH\(request: Request\)/);
-  for (const frag of ['fields.Decision = "Approved"', 'fields.Status = "In Progress"', 'fields.Status = "Rejected / Parked"', 'fields.Status = "Hermie Reviewed"', '"Fonz Notes"', 'Unknown action.', 'Airtable API key is not configured.']) {
-    assert.ok(s.includes(frag), frag);
-  }
+  assert.match(s, /applyLegacyDecision\(miloConfigFromEnv\(\), body\)/);
+  assert.match(s, /isSameOriginMutation\(request\.headers, request\.url\)/);
+  assert.ok(s.indexOf('isSameOriginMutation') < s.indexOf('applyLegacyDecision(miloConfigFromEnv'), 'origin check precedes any Airtable call');
+  assert.ok(!/Status\s*=\s*"In Progress"|fields\.Status\s*=/.test(s), 'route never writes Status itself (never In Progress)');
   assert.match(s, /normalizeLegacyRecord/);
   assert.match(s, /export const dynamic = "force-dynamic"/);
 });
@@ -214,4 +215,139 @@ test('truncation notice is truthful about the retained module (review F1)', asyn
   // The legacy GET reads one page of 100, so it never holds "the full table".
   assert.doesNotMatch(s, /full table/i);
   assert.match(legacyListUrl(config).toString(), /pageSize=100/);
+});
+
+// ---- Legacy decision recording (synthetic records, mock transport only; never a live Airtable write) -------------
+
+const { applyLegacyDecision, parseDecisionRequest, planDecision, DECISION_BOUNDARY } = await import('../src/lib/mission-control/milo-legacy-decision.mjs');
+const RID = 'recSYNTHLEGACY001';
+const T0 = Date.parse('2026-10-18T15:00:00Z');
+
+function airtableMock(fields) {
+  const calls = [];
+  let current = { id: RID, createdTime: '2026-10-01T00:00:00.000Z', fields: { Title: 'Synthetic legacy card', ...fields } };
+  const transport = async (url, init) => {
+    calls.push({ url, method: init.method, body: init.body ? JSON.parse(init.body) : null, auth: init.headers.Authorization });
+    assert.ok(url.endsWith(`/${RID}`), 'exact record url only');
+    if (init.method === 'PATCH') current = { ...current, fields: { ...current.fields, ...JSON.parse(init.body).fields } };
+    return json(current);
+  };
+  return { calls, transport, patches: () => calls.filter((c) => c.method === 'PATCH'), current: () => current };
+}
+
+test('first approval records permission (Status Approved), never In Progress, and says nothing was started', async () => {
+  const m = airtableMock({ Decision: 'Pending', Status: 'Needs Fonz Approval', Evidence: 'synthetic evidence' });
+  const out = await applyLegacyDecision(config, { id: RID, action: 'approve', notes: '' }, { transport: m.transport, now: () => T0 });
+  assert.equal(out.httpStatus, 200);
+  assert.equal(m.calls[0].method, 'GET', 'reads the exact record before writing');
+  assert.deepEqual(m.patches()[0].body.fields, { Decision: 'Approved', Status: 'Approved', 'Approved At': '2026-10-18T15:00:00.000Z' });
+  assert.equal(out.body.effect, 'permission_recorded');
+  assert.equal(out.body.execution, 'not_started');
+  assert.equal(out.body.boundary, DECISION_BOUNDARY);
+  assert.equal(m.current().fields.Evidence, 'synthetic evidence');
+  assert.ok(!JSON.stringify(m.calls).includes('In Progress'));
+  assert.equal(m.calls[0].auth, `Bearer ${KEY}`);
+});
+
+test('repeated approval preserves Decision, Approved At, a done outcome and notes, and makes no write', async () => {
+  const saved = { Decision: 'Approved', Status: 'Verified / Done', 'Approved At': '2026-09-01T10:00:00.000Z', 'Fonz Notes': 'FHA release shipped', Evidence: 'release receipt' };
+  const m = airtableMock(saved);
+  const out = await applyLegacyDecision(config, { id: RID, action: 'approve', notes: '' }, { transport: m.transport, now: () => T0 });
+  assert.equal(out.httpStatus, 200);
+  assert.equal(m.patches().length, 0, 'no PATCH on an unchanged repeat');
+  assert.equal(out.body.effect, 'approval_already_recorded');
+  assert.deepEqual(out.body.changedFields, []);
+  assert.equal(out.body.approval.status, 'Verified / Done');
+  assert.equal(out.body.approval.approvedAt, '2026-09-01T10:00:00.000Z');
+  assert.equal(out.body.approval.fonzNotes, 'FHA release shipped');
+});
+
+test('a legacy approved In Progress card is never re-stamped on repeat', () => {
+  const plan = planDecision({ Decision: 'Approved', Status: 'In Progress', 'Approved At': '2026-09-01T10:00:00.000Z' }, parseDecisionRequest({ id: RID, action: 'approve', notes: '' }), () => T0);
+  assert.deepEqual(plan.fields, {});
+  assert.equal(plan.repeat, true);
+});
+
+test('a new decision never downgrades a completed outcome and keeps an existing Approved At', () => {
+  const approve = planDecision({ Decision: 'Pending', Status: 'Verified / Done', 'Approved At': '2026-09-01T10:00:00.000Z' }, parseDecisionRequest({ id: RID, action: 'approve' }), () => T0);
+  assert.deepEqual(approve.fields, { Decision: 'Approved' });
+  const reject = planDecision({ Decision: 'Approved', Status: 'Verified / Done' }, parseDecisionRequest({ id: RID, action: 'reject' }), () => T0);
+  assert.deepEqual(reject.fields, { Decision: 'Rejected' });
+  const changes = planDecision({ Decision: 'Pending', Status: 'Needs Fonz Approval' }, parseDecisionRequest({ id: RID, action: 'needs_changes' }), () => T0);
+  assert.deepEqual(changes.fields, { Decision: 'Needs Changes', Status: 'Hermie Reviewed' });
+});
+
+test('notes are never silently cleared or rewritten unchanged', async () => {
+  const fields = { Decision: 'Pending', 'Fonz Notes': 'keep me' };
+  // A decision click with an empty notes box leaves notes alone.
+  assert.deepEqual(planDecision(fields, parseDecisionRequest({ id: RID, action: 'reject', notes: '' })).fields, { Decision: 'Rejected', Status: 'Rejected / Parked' });
+  // Unchanged notes are not written.
+  assert.equal(planDecision(fields, parseDecisionRequest({ id: RID, action: 'notes', notes: 'keep me' })).changed, false);
+  // Clearing requires explicit confirmation; nothing is written otherwise.
+  const m = airtableMock(fields);
+  const refused = await applyLegacyDecision(config, { id: RID, action: 'notes', notes: '' }, { transport: m.transport });
+  assert.equal(refused.httpStatus, 409);
+  assert.equal(refused.body.code, 'notes_clear_unconfirmed');
+  assert.equal(m.patches().length, 0);
+  assert.deepEqual(planDecision(fields, parseDecisionRequest({ id: RID, action: 'notes', notes: '', clearNotes: true })).fields, { 'Fonz Notes': '' });
+  assert.deepEqual(planDecision(fields, parseDecisionRequest({ id: RID, action: 'notes', notes: 'new' })).fields, { 'Fonz Notes': 'new' });
+});
+
+test('record ids, actions and statuses are validated before any request', async () => {
+  const m = airtableMock({});
+  for (const [body, code] of [
+    [null, 'invalid_body'],
+    [{ action: 'approve' }, 'missing_id'],
+    [{ id: 'recA', action: 'approve' }, 'invalid_id'],
+    [{ id: '../tblOther/recSYNTHLEGACY001', action: 'approve' }, 'invalid_id'],
+    [{ id: RID, action: 'execute' }, 'unknown_action'],
+    [{ id: RID, action: 'status' }, 'missing_status'],
+    [{ id: RID, action: 'status', status: 'In Progress' }, 'status_not_allowed'],
+    [{ id: RID, action: 'notes', notes: 'x'.repeat(5001) }, 'notes_too_long'],
+  ]) {
+    const out = await applyLegacyDecision(config, body, { transport: m.transport });
+    assert.equal(out.httpStatus, 400, code);
+    assert.equal(out.body.code, code);
+  }
+  assert.equal(m.calls.length, 0);
+  const none = await applyLegacyDecision(readMiloConfig({}), { id: RID, action: 'approve' }, { transport: m.transport });
+  assert.equal(none.httpStatus, 500);
+  assert.equal(m.calls.length, 0);
+});
+
+test('a failed record read saves nothing', async () => {
+  const calls = [];
+  const transport = async (url, init) => { calls.push(init.method); return json({ error: 'NOT_FOUND' }, 404); };
+  const out = await applyLegacyDecision(config, { id: RID, action: 'approve' }, { transport });
+  assert.equal(out.httpStatus, 404);
+  assert.deepEqual(calls, ['GET']);
+  const mismatch = async () => json({ id: 'recSYNTHOTHER0001', fields: {} });
+  assert.equal((await applyLegacyDecision(config, { id: RID, action: 'approve' }, { transport: mismatch })).httpStatus, 502);
+});
+
+test('legacy normalizer exposes raw saved status/decision without its display defaults', () => {
+  const out = normalizeLegacyRecord({ id: 'recA', fields: {} });
+  assert.equal(out.savedStatus, null);
+  assert.equal(out.savedDecision, null);
+  assert.equal(normalizeLegacyRecord({ id: 'recA', fields: { Status: 'In Progress', Decision: 'Approved' } }).savedStatus, 'In Progress');
+});
+
+test('legacy page is a concise card list with details, evidence-backed status and no execute action', async () => {
+  const s = await src('src/app/milo-approvals/page.tsx');
+  assert.ok(!/grid-cols-7|min-w-\[1180px\]/.test(s), 'no 7-column wall');
+  assert.ok(!/queue execution|Approve \+ queue/i.test(s), 'approval is never labelled as queuing execution');
+  assert.match(s, /Record approval \(permission only\)/);
+  assert.match(s, /DECISION_BOUNDARY/);
+  assert.match(s, /<details/);
+  assert.match(s, /line-clamp-2/);
+  assert.match(s, /joinSourceCards\(cards, links\)/);
+  assert.match(s, /fetch\("\/api\/control\/record-links"/);
+  assert.match(s, /savedStatus/);
+  assert.match(s, /Unknown \(task links could not be read\)/);
+  assert.match(s, /href="\/approvals"/);
+  assert.match(s, /href="\/content"/);
+  for (const action of ['"approve"', '"needs_changes"', '"reject"', '"notes"']) assert.ok(s.includes(`onAction(${action})`), action);
+  assert.ok(!/onAction\("execute"\)|>\s*Execute\s*</.test(s), 'no execute button');
+  assert.ok(!/title\.includes|\.title\s*===|match\(.*title/i.test(s), 'never links by title');
+  assert.match(DECISION_BOUNDARY, /Approval records permission; execution is confirmed by a linked task/);
 });

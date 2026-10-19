@@ -52,6 +52,9 @@ export function normalizeLegacyRecord(record) {
     decision: stringField(fields, "Decision") || "Pending",
     fonzNotes: stringField(fields, "Fonz Notes"),
     approvedAt: stringField(fields, "Approved At"),
+    // Raw saved values (null when missing) so the legacy page can show exactly what Airtable holds, not the defaults.
+    savedStatus: raw(fields, "Status"),
+    savedDecision: raw(fields, "Decision"),
   };
 }
 

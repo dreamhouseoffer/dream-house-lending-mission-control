@@ -4,6 +4,9 @@ import { BridgeNotice, TaskStateChip, VerificationChip, taskSource } from "@/com
 import { AutoRefresh } from "@/components/mc/auto-refresh";
 import { formatTime } from "@/lib/mission-control/bridge-client.mjs";
 import { readCapabilities, readTask } from "@/lib/mission-control/bridge";
+import { readArtifactList } from "@/lib/mission-control/artifacts";
+import { artifactsSupported } from "@/lib/mission-control/artifacts-client.mjs";
+import { ArtifactFailure, ArtifactFiles, ReviewStatus } from "@/components/mc/artifact-views";
 
 export const metadata: Metadata = { title: "Task · Mission Control" };
 export const dynamic = "force-dynamic";
@@ -36,6 +39,9 @@ export default async function TaskDetailPage({ params, searchParams = {} }: { pa
     );
   }
   const { task, runs, events, latestSummary } = detail;
+  const supported = caps.ok ? artifactsSupported(caps) : null;
+  const files = supported ? await readArtifactList(task.id) : null;
+  const stuck = ["failed", "blocked", "interrupted"].includes(task.ui.state);
 
   return (
     <McPage>
@@ -65,9 +71,37 @@ export default async function TaskDetailPage({ params, searchParams = {} }: { pa
         </div>
       </Section>
 
+      {stuck && (
+        <StateNotice kind="error" title={`Why ${task.ui.state}: ${(task.ui.reason || "no reason recorded").slice(0, 160)}`}>
+          Next step: {task.ui.state === "failed" ? "read the run error below, then submit a new task from Tasks if it should run again." : "resolve the blocker named above in Hermes; this page cannot unblock or retry."}
+        </StateNotice>
+      )}
+
+      <Section id="results" title="Result files" description="Registered native attachments on this task, opened by id. Drafts are not published.">
+        {!caps.ok ? (
+          <ArtifactFailure state={caps.state} />
+        ) : !supported ? (
+          <ArtifactFailure state="not_supported" />
+        ) : files && files.ok ? (
+          <div className="space-y-3">
+            {files.artifacts.length > 0 && <ReviewStatus list={files} />}
+            <ArtifactFiles list={files} />
+          </div>
+        ) : files ? (
+          <ArtifactFailure state={files.state} />
+        ) : null}
+      </Section>
+
       <Section title="Result" description="Latest summary recorded on the task board.">
         {latestSummary ? (
-          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-200">{latestSummary}</p>
+          <details className="group">
+            <summary className="cursor-pointer list-none">
+              <p className="line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-slate-200 group-open:hidden">{latestSummary}</p>
+              <span className="text-xs font-medium text-teal-300 group-open:hidden">Show full summary</span>
+              <span className="hidden text-xs font-medium text-teal-300 group-open:inline">Hide full summary</span>
+            </summary>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{latestSummary}</p>
+          </details>
         ) : (
           <StateNotice kind={task.ui.state === "failed" ? "error" : "empty"} title={task.ui.state === "failed" ? "Task failed without a result summary" : TERMINAL.has(task.ui.state) ? "No result summary recorded" : "No result yet"}>
             {task.ui.state === "failed" ? "See the run error below. To try again, submit a new task from Tasks; failed runs are never replayed automatically." : null}
@@ -76,8 +110,13 @@ export default async function TaskDetailPage({ params, searchParams = {} }: { pa
       </Section>
 
       {task.body && (
-        <Section title="Assignment">
-          <p className="whitespace-pre-wrap text-sm leading-6 text-slate-300">{text(task.body)}</p>
+        <Section title="Assignment" description="Full native instructions, kept intact.">
+          <details>
+            <summary className="cursor-pointer text-sm text-slate-300">
+              <span className="line-clamp-2 inline">{text(task.body).slice(0, 220)}</span> <span className="text-xs font-medium text-teal-300">Show full instructions</span>
+            </summary>
+            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{text(task.body)}</p>
+          </details>
         </Section>
       )}
 
@@ -94,7 +133,7 @@ export default async function TaskDetailPage({ params, searchParams = {} }: { pa
                 <p>
                   started {formatTime(r.started_at)} · ended {r.ended_at ? formatTime(r.ended_at) : "open"}
                 </p>
-                {r.summary && <p className="mt-1 whitespace-pre-wrap text-slate-300">{text(r.summary)}</p>}
+                {r.summary && <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-slate-300" title={text(r.summary).slice(0, 500)}>{text(r.summary)}</p>}
                 {r.error && <p className="mt-1 whitespace-pre-wrap text-rose-300">{text(r.error)}</p>}
               </li>
             ))}
@@ -106,7 +145,9 @@ export default async function TaskDetailPage({ params, searchParams = {} }: { pa
         {events.length === 0 ? (
           <StateNotice kind="empty" title="No events recorded" />
         ) : (
-          <ul className="space-y-1 text-xs leading-5 text-slate-400">
+          <details>
+          <summary className="cursor-pointer text-xs font-medium text-teal-300">Show the last {Math.min(20, events.length)} event(s)</summary>
+          <ul className="mt-2 space-y-1 text-xs leading-5 text-slate-400">
             {events.slice(-20).map((e, i) => (
               <li key={i} className="break-words font-mono">
                 {Object.entries(e)
@@ -116,6 +157,7 @@ export default async function TaskDetailPage({ params, searchParams = {} }: { pa
               </li>
             ))}
           </ul>
+          </details>
         )}
       </Section>
 

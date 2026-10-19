@@ -31,6 +31,11 @@ export default async function AgentsPage() {
         eyebrow="Work"
         title="Agents"
         description="Hermes profiles configured on the Mac, with their native task assignments. Configuration is not liveness: no heartbeat is reported, so no agent is shown as online."
+        actions={
+          <Link href="/office" className="inline-flex min-h-9 items-center rounded-lg border border-teal-500/40 bg-teal-500/10 px-3 py-1.5 text-sm font-medium text-teal-100 hover:bg-teal-500/20">
+            Open the team office
+          </Link>
+        }
       />
       <SourceNote source={source} />
 
