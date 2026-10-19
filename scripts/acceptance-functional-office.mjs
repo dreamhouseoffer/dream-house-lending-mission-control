@@ -144,10 +144,20 @@ test("functional office acceptance (isolated read-only bridge + preview app)", {
   const c = html["/content"];
   check("review", "/content shows the Milo package", "t_11191492, Ready for review (draft), publication unknown + review boundary, Open/Download links",
     /t_11191492/.test(c) && /Ready for review \(draft\)/.test(c) && /Publication: unknown/.test(c) && /This review did not authorize publication/.test(c) && /artifacts\/a20/.test(c), "rendered HTML");
-  const pkgs = (c.match(/href="\/tasks\/t_[0-9a-f]{8}"/g) ?? []).map((m) => m.slice(13, -1));
-  check("review", "/content is one declared package, no generic cards", "only t_11191492; no 'could not be read'; no 'Not published'; FHA release absent",
-    pkgs.length > 0 && pkgs.every((id) => id === TASK) && !/could not be read|could not be verified/.test(c) && !/Not published/.test(c) && !c.includes(RELEASE),
-    `task links ${[...new Set(pkgs)].join(",") || "none"}`);
+  // Every package card must be the legacy package or carry a VALID typed declaration (checked per package through the
+  // authenticated list route); the hub may hold more than one package. The generic FHA release must never appear.
+  const pkgs = [...new Set([...c.matchAll(/data-testid="content-package" data-task-id="(t_[0-9a-f]{6,32})"/g)].map((m) => m[1]))];
+  const perPackage = [];
+  for (const id of pkgs) {
+    if (id === TASK) { perPackage.push(`${id}:legacy`); continue; }
+    const r = await text(`/api/control/tasks/${id}/artifacts`);
+    const l = r.status === 200 ? JSON.parse(r.body) : null;
+    const ok = Boolean(l && l.package?.state === "valid" && l.package.declaredDigests >= 1 && l.artifacts.some((x) => x.declared && x.readable));
+    perPackage.push(`${id}:${ok ? "declared" : `REJECT(${r.status},${l?.package?.state ?? "no-declaration"})`}`);
+  }
+  check("review", "/content packages are legacy or validly declared, no generic cards", "includes t_11191492; every other card has a valid declaration; no 'could not be read'; no 'Not published'; FHA release absent",
+    pkgs.includes(TASK) && perPackage.every((x) => !x.includes("REJECT")) && !/could not be read|could not be verified/.test(c) && !/Not published/.test(c) && !c.includes(RELEASE),
+    `packages ${perPackage.join(",") || "none"}`);
   const rel = html[`/tasks/${RELEASE}`];
   check("status-truth", "completed FHA release task detail", "Result files + publication unknown; never Draft / Not published / not authorized",
     /Result files/.test(rel) && /Publication status unavailable/.test(rel) && !/Draft \(not reviewed\)|Ready for review|Not published|publication is not authorized/.test(rel), "rendered HTML");
@@ -228,13 +238,14 @@ test("functional office acceptance (isolated read-only bridge + preview app)", {
         if (!reduced) {
           await page.goto(`${base}/content`, { waitUntil: "networkidle" });
           await page.screenshot({ path: path.join(OUT, `content-${tag}.png`), fullPage: true });
-          // Default view: exactly the four canonical reviewed files (standalone a18/a20 preferred over zip copies).
-          const visible = await page.evaluate(() => [...document.querySelectorAll("#review li")]
+          // Legacy package card: exactly its four canonical reviewed files (standalone a18/a20 preferred over zip copies).
+          // Scoped to that card: other declared packages on the hub are validated separately above.
+          const visible = await page.evaluate((id) => [...document.querySelectorAll(`#review [data-task-id="${id}"] li`)]
             .filter((li) => !li.closest("details:not([open])") && li.getBoundingClientRect().height > 0)
-            .map((li) => li.querySelector("a[href*='/artifacts/']")?.getAttribute("href")?.split("/").pop()));
+            .map((li) => li.querySelector("a[href*='/artifacts/']")?.getAttribute("href")?.split("/").pop()), TASK);
           check("review", `${tag}: /content default files`, "a18,a20,a21m2,a21m3 once each; duplicates and registry behind details",
             [...visible].sort().join(",") === "a18,a20,a21m2,a21m3", `visible ${visible.join(",")}`, "real-browser");
-          await page.getByRole("link", { name: "Open page-draft.md" }).first().click();
+          await page.locator(`#review [data-task-id="${TASK}"]`).getByRole("link", { name: "Open page-draft.md" }).first().click();
           await page.waitForURL(/\/artifacts\/a20/);
           const prev = await page.getByText("Preview").first().isVisible();
           await page.screenshot({ path: path.join(OUT, `preview-${tag}.png`), fullPage: false });

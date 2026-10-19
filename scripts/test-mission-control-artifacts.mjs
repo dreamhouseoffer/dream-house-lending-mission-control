@@ -21,6 +21,14 @@ import {
   hasCoveringReceipt,
   isDraftPackage,
   reviewStage,
+  checkContentPackages,
+  contentPackagesSupported,
+  declaredFilesReviewed,
+  discoverySummary,
+  fetchContentPackages,
+  packageBasis,
+  parseContentPage,
+  LEGACY_DRAFT_PACKAGE_TASKS,
 } from "../src/lib/mission-control/artifacts-client.mjs";
 import { joinSourceCards, sourceCardState, sourceNextAction } from "../src/lib/mission-control/source-cards.mjs";
 import { activityCandidates, nativeActivity, officeRoster, HEARTBEAT_MAX_AGE_MS } from "../src/lib/mission-control/office-model.mjs";
@@ -88,7 +96,7 @@ test("artifact list parser accepts the bridge contract and refuses paths, public
 
 test("declared draft package with a covering receipt is ready for review; the receipt only bounds that review", () => {
   const l = checkArtifactList(list(), T);
-  assert.equal(isDraftPackage(T), true);
+  assert.equal(isDraftPackage(l), true);
   assert.equal(reviewStage(l).stage, "ready_for_review");
   assert.equal(reviewStage(l).label, "Ready for review (draft)");
   const p = publicationStatus(l);
@@ -136,7 +144,7 @@ test("generic completed release with files and no parent review: Result files, p
     review: null,
   }), R);
   assert.ok(release);
-  assert.equal(isDraftPackage(R), false);
+  assert.equal(isDraftPackage(release), false);
   const stage = reviewStage(release);
   assert.equal(stage.stage, "result_files");
   assert.equal(stage.label, "Result files");
@@ -393,4 +401,161 @@ test("office page source has no invented roster or fake business numbers", async
   assert.match(floor, /prefers-reduced-motion/);
   assert.match(floor, /Pause motion/);
   assert.match(floor, /Escape/);
+});
+
+// ---- typed content-package declarations + bounded discovery (SYNTHETIC fixtures) ----
+
+const N = "t_0faf5ee6";
+const NA = sha(Buffer.from("new draft")), NB = sha(Buffer.from("new notes")), NC = sha(Buffer.from("new brief"));
+const RECEIPT = "e".repeat(64), DECL = "7".repeat(64);
+function declared(overrides = {}, pkg = {}) {
+  const f = (id, name, digest, extra = {}) => ({ id, kind: "attachment", parent_id: null, name, content_type: "text/markdown; charset=utf-8", size: 10, sha256: digest, uploaded_by: "milo", registered_at: iso, readable: true, problem: null, reviewed: true, declared: true, ...extra });
+  return {
+    task_id: N,
+    // Assignee was reassigned by review: it is never used for classification.
+    task: { title: "Conventional loan explainer", assignee: "default", ui: { state: "completed", reason: "", native_status: "done", latest_run_outcome: "completed" } },
+    artifacts: [
+      f("a27", "draft.md", NA), f("a28", "notes.md", NB), f("a29", "brief.md", NC),
+      f("a30", "parent-review.json", RECEIPT, { content_type: "application/json; charset=utf-8", reviewed: false, declared: false }),
+      f("a31", "content-package.json", DECL, { content_type: "application/json; charset=utf-8", reviewed: false, declared: false }),
+    ],
+    review: { source_artifact_id: "a30", reviewer: "parent", reviewed_at: iso, decision: "PASS", publication_authorized: false, website_changed: false, reviewed_digests: 3, limitations: [] },
+    package: { source_artifact_id: "a31", schema: "mission-control.content-package", version: 1, type: "content_draft_package", state: "valid", problem: null, declared_digests: 3, superseded_declarations: 0, ...pkg },
+    unregistered_reviewed_digests: 0,
+    publication: "not_published_by_bridge",
+    observed_at: iso,
+    ...overrides,
+  };
+}
+
+test("declared package (not in the legacy list) is a draft package; ready only when every declared digest is reviewed", () => {
+  assert.ok(!LEGACY_DRAFT_PACKAGE_TASKS.includes(N), "the new package is not hardcoded");
+  assert.deepEqual(LEGACY_DRAFT_PACKAGE_TASKS, ["t_11191492"]);
+  const l = checkArtifactList(declared(), N);
+  assert.ok(l);
+  assert.equal(l.package.state, "valid");
+  assert.equal(isDraftPackage(l), true);
+  assert.equal(packageBasis(l), "declared");
+  assert.equal(declaredFilesReviewed(l), true);
+  assert.equal(reviewStage(l).stage, "ready_for_review");
+  assert.equal(publicationStatus(l).state, "unknown");
+  assert.equal(publicationStatus(l).boundary, "This review did not authorize publication");
+  // One declared file not covered by the receipt: still a draft, never ready.
+  const partial = { ...l, artifacts: l.artifacts.map((a) => (a.id === "a29" ? { ...a, reviewed: false } : a)) };
+  assert.equal(declaredFilesReviewed(partial), false);
+  assert.equal(reviewStage(partial).stage, "draft");
+  assert.equal(reviewStage(partial).label, "Draft (review incomplete)");
+  assert.equal(publicationStatus(partial).boundary, null);
+  // Receipt absence is never approval or readiness.
+  const noReceipt = { ...l, review: null, artifacts: l.artifacts.map((a) => ({ ...a, reviewed: false })) };
+  assert.equal(reviewStage(noReceipt).stage, "draft");
+  assert.equal(reviewStage(noReceipt).label, "Draft (not reviewed)");
+  assert.equal(publicationStatus(noReceipt).boundary, null);
+  // A declared file that became unreadable: the declaration is no longer fully carried.
+  const gone = { ...l, artifacts: l.artifacts.map((a) => (a.id === "a28" ? { ...a, readable: false, problem: "unavailable", sha256: null } : a)) };
+  assert.equal(reviewStage(gone).stage, "draft");
+});
+
+test("invalid or absent declaration never classifies; parser refuses inconsistent declaration claims", () => {
+  const inv = checkArtifactList(declared({ artifacts: declared().artifacts.map((a) => ({ ...a, declared: false })) }, { state: "invalid", problem: "wrong_task", declared_digests: 0 }), N);
+  assert.ok(inv);
+  assert.equal(isDraftPackage(inv), false);
+  assert.equal(reviewStage(inv).stage, "result_files", "a rejected declaration is not a draft, even with a covering receipt");
+  const none = checkArtifactList(declared({ package: undefined, artifacts: declared().artifacts.map(({ declared: _d, ...a }) => a) }), N);
+  assert.ok(none, "older bridge without package/declared fields still parses");
+  assert.equal(none.package, null);
+  assert.equal(reviewStage(none).stage, "result_files");
+  for (const [why, data] of [
+    ["declared flag without a valid declaration", declared({}, { state: "invalid", problem: "wrong_task" })],
+    ["valid with a problem", declared({}, { problem: "wrong_task" })],
+    ["invalid without a problem", declared({ artifacts: declared().artifacts.map((a) => ({ ...a, declared: false })) }, { state: "invalid" })],
+    ["unknown problem code", declared({ artifacts: declared().artifacts.map((a) => ({ ...a, declared: false })) }, { state: "invalid", problem: "owner_approved" })],
+    ["wrong schema", declared({}, { schema: "other" })],
+    ["wrong type", declared({}, { type: "release" })],
+    ["wrong version", declared({}, { version: 2 })],
+    ["declaration not a registered artifact", declared({}, { source_artifact_id: "a99" })],
+    ["declaration id is a path", declared({}, { source_artifact_id: "../content-package.json" })],
+    ["valid with zero declared files", declared({}, { declared_digests: 0 })],
+    ["declared flag not boolean", declared({ artifacts: declared().artifacts.map((a) => ({ ...a, declared: "yes" })) })],
+  ]) assert.equal(checkArtifactList(data, N), null, why);
+});
+
+function discovery(overrides = {}) {
+  return {
+    packages: [{ task_id: N, title: "Conventional loan explainer", native_status: "done", created_at: 1790000100, completed_at: 1790000200, declaration_artifact_id: "a31", declared_digests: 3 }],
+    invalid: [{ task_id: "t_aaaa0001", title: "Bad decl", native_status: "done", created_at: 1, completed_at: 2, declaration_artifact_id: "a5", problem: "wrong_task" }],
+    failures: [{ task_id: "t_aaaa0002", code: "busy" }],
+    checked_task_ids: [N, "t_aaaa0001", "t_aaaa0002", "t_d6ca0e80"],
+    page: 1, page_size: 8, candidates_total: 12, candidates_capped: false, has_more: true,
+    candidate_rule: "native status done|review, newest first", authority: "classification_only",
+    publication: "not_published_by_bridge", observed_at: iso,
+    ...overrides,
+  };
+}
+
+test("discovery page parser: exact page, checked ids only, no publication/authority claims, honest summary", () => {
+  const d = checkContentPackages(discovery(), 1);
+  assert.ok(d);
+  assert.deepEqual(d.packages.map((p) => p.taskId), [N]);
+  assert.equal(d.invalid[0].problem, "wrong_task");
+  assert.deepEqual(d.failures, [{ taskId: "t_aaaa0002", code: "busy" }]);
+  assert.deepEqual(d.range, { from: 1, to: 4 });
+  assert.ok(!d.packages.some((p) => p.taskId === "t_d6ca0e80"), "a checked generic release is not a package");
+  const text = discoverySummary(d);
+  assert.match(text, /Checked finished tasks 1–4 of 12 \(newest first\)/);
+  assert.match(text, /1 declared package on this page/);
+  assert.match(text, /1 declaration rejected/);
+  assert.match(text, /1 task could not be checked/);
+  assert.match(discoverySummary(checkContentPackages(discovery({ page: 2, candidates_capped: true }), 2)), /9–12 of 12\+/);
+  assert.match(discoverySummary(checkContentPackages(discovery({ packages: [], invalid: [], failures: [], checked_task_ids: [], page: 3, has_more: false }), 3)), /past the last of 12/);
+  for (const [why, data, page] of [
+    ["page mismatch", discovery(), 2],
+    ["publication claim", discovery({ publication: "published" }), 1],
+    ["authority claim", discovery({ authority: "owner_consent" }), 1],
+    ["package not among checked ids", discovery({ checked_task_ids: ["t_aaaa0001", "t_aaaa0002"] }), 1],
+    ["same task twice", discovery({ invalid: [{ ...discovery().invalid[0], task_id: N }] }), 1],
+    ["bad status", discovery({ packages: [{ ...discovery().packages[0], native_status: "running" }] }), 1],
+    ["bad task id", discovery({ checked_task_ids: ["../x"] }), 1],
+    ["more rows than page size", discovery({ page_size: 1 }), 1],
+    ["unknown problem", discovery({ invalid: [{ ...discovery().invalid[0], problem: "x" }] }), 1],
+    ["declaration id path", discovery({ packages: [{ ...discovery().packages[0], declaration_artifact_id: "content-package.json" }] }), 1],
+  ]) assert.equal(checkContentPackages(data, page), null, why);
+});
+
+test("discovery fetch: signed bounded GET with page query; offline and schema failures stay distinct", async () => {
+  const seen = [];
+  const ok = await fetchContentPackages(config, 2, { transport: transportFor({ "/v0/content-packages?page=2": { body: discovery({ page: 2 }) } }, seen) });
+  assert.equal(ok.ok, true);
+  assert.equal(seen[0].target, "/v0/content-packages?page=2");
+  assert.ok(seen[0].headers["x-mc-signature"]);
+  const first = [];
+  await fetchContentPackages(config, 1, { transport: transportFor({ "/v0/content-packages": { body: discovery() } }, first) });
+  assert.equal(first[0].target, "/v0/content-packages");
+  const bad = await fetchContentPackages(config, 1, { transport: transportFor({ "/v0/content-packages": { body: discovery({ page: 9 }) } }) });
+  assert.deepEqual(bad, { ok: false, state: "bad_payload", code: "schema_mismatch" });
+  const offline = await fetchContentPackages(config, 1, { transport: async () => { throw Object.assign(new Error("x"), { code: "ECONNREFUSED" }); } });
+  assert.equal(offline.ok, false);
+  assert.equal(offline.state, "offline");
+  for (const p of [0, 1000, 1.5, NaN, "2"]) assert.equal((await fetchContentPackages(config, p, { transport: async () => assert.fail("no request") })).code, "invalid_page");
+  assert.equal(contentPackagesSupported({ ops: ["GET /v0/content-packages"] }), true);
+  assert.equal(contentPackagesSupported({ ops: ["GET /v0/tasks/:id/artifacts"] }), false, "an older bridge: legacy package only, nothing guessed");
+  for (const [raw, want] of [[undefined, 1], ["1", 1], ["2", 2], ["999", 999], ["0", null], ["1000", null], ["-1", null], ["2x", null], ["../1", null], [["1", "2"], null]]) {
+    assert.equal(parseContentPage(raw), want, String(raw));
+  }
+});
+
+test("content page source: discovery-driven, legacy kept, assignee not shown as owner, bounded navigation and loading state", async () => {
+  const page = await readFile(join(ROOT, "src/app/content/page.tsx"), "utf8");
+  const lib = await readFile(join(ROOT, "src/lib/mission-control/artifacts.ts"), "utf8");
+  assert.ok(!/t_0faf5ee6/.test(page + lib), "no new hardcoded package id");
+  assert.ok(!/PINNED_REVIEW_TASKS|\bDRAFT_PACKAGE_TASKS\b/.test(page + lib));
+  assert.match(page, /readReviewPackages\(page, \{ discover \}\)/);
+  assert.match(page, /Older →/);
+  assert.match(page, /← Newer/);
+  assert.match(page, /Package discovery is not served by the running bridge yet/);
+  assert.doesNotMatch(page, /owner \{p\.task\.assignee/);
+  assert.doesNotMatch(page, /title\.(includes|match)|\.test\(p\.task\.title/);
+  assert.match(lib, /page === 1 \? LEGACY_REVIEW_TASKS/);
+  const loading = await readFile(join(ROOT, "src/app/content/loading.tsx"), "utf8");
+  assert.match(loading, /aria-busy="true"/);
 });

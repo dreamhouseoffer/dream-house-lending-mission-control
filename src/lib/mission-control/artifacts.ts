@@ -4,7 +4,15 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { readBridgeConfig, TASK_ID_RE } from "./bridge-client.mjs";
 import { hasControlAccess, type BridgeResult, type BridgeTask } from "./bridge";
-import { ARTIFACT_ID_RE, DRAFT_PACKAGE_TASKS, fetchArtifactBytes, fetchArtifactList, fetchRecordLinks } from "./artifacts-client.mjs";
+import {
+  ARTIFACT_ID_RE,
+  CONTENT_PACKAGES_MAX_PAGE,
+  LEGACY_DRAFT_PACKAGE_TASKS,
+  fetchArtifactBytes,
+  fetchArtifactList,
+  fetchContentPackages,
+  fetchRecordLinks,
+} from "./artifacts-client.mjs";
 
 export type Artifact = {
   id: string;
@@ -19,6 +27,17 @@ export type Artifact = {
   readable: boolean;
   problem: string | null;
   reviewed: boolean;
+  declared: boolean;
+};
+export type ContentPackage = {
+  sourceArtifactId: string;
+  schema: "mission-control.content-package";
+  version: 1;
+  type: "content_draft_package";
+  state: "valid" | "invalid";
+  problem: string | null;
+  declaredDigests: number;
+  supersededDeclarations: number;
 };
 export type ArtifactReview = {
   sourceArtifactId: string;
@@ -35,6 +54,7 @@ export type ArtifactList = {
   task: { title: string | null; assignee: string | null; ui: BridgeTask["ui"] };
   artifacts: Artifact[];
   review: ArtifactReview | null;
+  package: ContentPackage | null;
   unregisteredReviewedDigests: number;
   publication: "not_published_by_bridge";
   observedAt: string;
@@ -50,12 +70,34 @@ export type LinkedTask = {
   linkage: "workspace_segment";
 };
 export type RecordLinks = { links: { recordId: string; tasks: LinkedTask[] }[]; scannedTasks: number; linkageRule: string; observedAt: string };
+export type DiscoveredPackage = {
+  taskId: string;
+  title: string | null;
+  nativeStatus: "done" | "review";
+  createdAt: number | null;
+  completedAt: number | null;
+  declarationArtifactId: string;
+};
+export type ContentPackagePage = {
+  page: number;
+  pageSize: number;
+  checkedTaskIds: string[];
+  packages: (DiscoveredPackage & { declaredDigests: number })[];
+  invalid: (DiscoveredPackage & { problem: string })[];
+  failures: { taskId: string; code: string }[];
+  candidatesTotal: number;
+  candidatesCapped: boolean;
+  hasMore: boolean;
+  range: { from: number; to: number } | null;
+  candidateRule: string;
+  observedAt: string;
+};
 export type ArtifactBytes =
   | { ok: true; bytes: Buffer; contentType: string; name: string; sha256: string; artifact: Artifact; task: ArtifactList["task"]; review: ArtifactReview | null }
   | { ok: false; state: string; code: string };
 
-// Only declared draft packages are discovered for Content review; arbitrary finished tasks are not drafts.
-export const PINNED_REVIEW_TASKS: readonly string[] = DRAFT_PACKAGE_TASKS;
+// The pre-declaration package, still shown on the first Content page. New packages are discovered by declaration.
+export const LEGACY_REVIEW_TASKS: readonly string[] = LEGACY_DRAFT_PACKAGE_TASKS;
 
 function config() {
   return readBridgeConfig({ url: process.env.MC_BRIDGE_URL, secret: process.env.MC_BRIDGE_SECRET });
@@ -88,18 +130,41 @@ export function readRecordLinks(): Promise<BridgeResult<RecordLinks>> {
   return guarded((cfg) => fetchRecordLinks(cfg));
 }
 
-/**
- * Review discovery: declared draft packages only, read one at a time. Arbitrary finished tasks (source captures,
- * research, releases) are not drafts and are not scanned; their files stay on the task detail page. Reading
- * sequentially also keeps within the bridge's bounded CLI concurrency instead of tripping its 503 busy answer.
- */
-export async function readReviewPackages(): Promise<{
+export function readContentPackagePage(page: number): Promise<BridgeResult<ContentPackagePage>> {
+  if (!Number.isSafeInteger(page) || page < 1 || page > CONTENT_PACKAGES_MAX_PAGE) return Promise.resolve({ ok: false, state: "not_found", code: "invalid_page" });
+  return guarded((cfg) => fetchContentPackages(cfg, page));
+}
+
+export type ReviewPackages = {
   packages: ArtifactList[];
   failures: { taskId: string; state: string; code: string }[];
-}> {
+  // null when the running bridge does not serve discovery (only the legacy package is read) or discovery failed.
+  discovery: ContentPackagePage | null;
+  discoveryFailure: { state: string; code: string } | null;
+  legacyChecked: readonly string[];
+};
+
+/**
+ * Review discovery, bounded per page: one discovery page from the bridge (it checks a fixed number of done/review
+ * candidates for a valid typed declaration), then each discovered package's file list, read one at a time to stay
+ * within the bridge's bounded CLI concurrency. The legacy pre-declaration package is read on page 1 only. A task is
+ * never shown here because of its title, assignee or status; generic finished tasks keep their files on their task page.
+ */
+export async function readReviewPackages(page: number, { discover }: { discover: boolean }): Promise<ReviewPackages> {
   const packages: ArtifactList[] = [];
   const failures: { taskId: string; state: string; code: string }[] = [];
-  for (const id of PINNED_REVIEW_TASKS) {
+  let discovery: ContentPackagePage | null = null;
+  let discoveryFailure: { state: string; code: string } | null = null;
+  const ids: string[] = [];
+  if (discover) {
+    const d = await readContentPackagePage(page);
+    if (d.ok) {
+      discovery = d;
+      ids.push(...d.packages.map((p) => p.taskId));
+    } else discoveryFailure = { state: d.state, code: d.code };
+  }
+  const legacyChecked = page === 1 ? LEGACY_REVIEW_TASKS.filter((id) => !ids.includes(id)) : [];
+  for (const id of [...ids, ...legacyChecked]) {
     const r = await readArtifactList(id);
     if (r.ok) {
       if (r.artifacts.length > 0) packages.push(r);
@@ -107,5 +172,5 @@ export async function readReviewPackages(): Promise<{
       failures.push({ taskId: id, state: r.state, code: r.code });
     }
   }
-  return { packages, failures };
+  return { packages, failures, discovery, discoveryFailure, legacyChecked };
 }

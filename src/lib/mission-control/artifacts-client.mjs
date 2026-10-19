@@ -1,5 +1,6 @@
 // Strict, bounded reader for the bridge's registered-artifact and record-link reads:
-//   GET /v0/tasks/:id/artifacts, GET /v0/tasks/:id/artifacts/:artifact_id (raw bytes), GET /v0/record-links.
+//   GET /v0/tasks/:id/artifacts, GET /v0/tasks/:id/artifacts/:artifact_id (raw bytes), GET /v0/record-links,
+//   GET /v0/content-packages (bounded, paged discovery of typed content-package declarations).
 // Server-only: requests are signed with the shared secret through the bridge client. Framework-neutral so the parsers
 // can be tested directly. Fails closed: one malformed record rejects the whole payload. Artifact ids are the bridge's
 // opaque registered ids (a<N> / a<N>m<K>); a filename or path is never accepted or returned.
@@ -24,6 +25,28 @@ export const PREVIEW_MAX_BYTES = 1024 * 1024;
 export const PUBLICATION_NOT_BY_BRIDGE = "not_published_by_bridge";
 export const ARTIFACTS_OP = "GET /v0/tasks/:id/artifacts";
 export const RECORD_LINKS_OP = "GET /v0/record-links";
+export const CONTENT_PACKAGES_OP = "GET /v0/content-packages";
+export const CONTENT_PACKAGES_MAX_BYTES = 64 * 1024;
+export const CONTENT_PACKAGES_MAX_PAGE = 999;
+// Discovery reads one bounded page of candidates sequentially; allow the bridge the full client ceiling.
+export const CONTENT_PACKAGES_TIMEOUT_MS = 20_000;
+export const PACKAGE_SCHEMA = "mission-control.content-package";
+export const PACKAGE_TYPE = "content_draft_package";
+export const PACKAGE_PROBLEMS = [
+  "unreadable", "too_large", "malformed_json", "unexpected_keys", "unsupported_schema", "wrong_task", "bad_artifact_list",
+  "declared_artifact_missing", "declares_control_file",
+];
+export const PACKAGE_PROBLEM_TEXT = {
+  unreadable: "declaration file is not readable",
+  too_large: "declaration file is too large",
+  malformed_json: "declaration is not a JSON object",
+  unexpected_keys: "declaration has missing or unexpected fields",
+  unsupported_schema: "declaration schema, version or type is not supported",
+  wrong_task: "declaration names a different task",
+  bad_artifact_list: "declared file list is empty, too long, duplicated or malformed",
+  declared_artifact_missing: "a declared file is not registered on this task",
+  declares_control_file: "a declared file is the declaration or review receipt itself",
+};
 
 export const ARTIFACT_PROBLEMS = [
   "unsafe_name", "unsupported_type", "too_large", "size_mismatch", "path_mismatch", "not_regular_file", "unavailable",
@@ -108,6 +131,8 @@ function checkArtifact(a) {
     readable: typeof a.readable === "boolean" ? a.readable : NO,
     problem: a.problem === null ? null : ARTIFACT_PROBLEMS.includes(a.problem) ? a.problem : NO,
     reviewed: typeof a.reviewed === "boolean" ? a.reviewed : NO,
+    // Older bridges do not send `declared`; absent means not declared by a valid content-package declaration.
+    declared: a.declared === undefined ? false : typeof a.declared === "boolean" ? a.declared : NO,
   };
   if (Object.values(out).includes(NO)) return null;
   if ((out.kind === "archive_member") !== (out.parentId !== null)) return null;
@@ -132,6 +157,26 @@ function checkReview(r) {
   return Object.values(out).includes(NO) ? NO : out;
 }
 
+function checkPackage(p) {
+  if (p === null || p === undefined) return null;
+  if (!isObj(p)) return NO;
+  const out = {
+    sourceArtifactId: typeof p.source_artifact_id === "string" && ARTIFACT_ID_RE.test(p.source_artifact_id) ? p.source_artifact_id : NO,
+    schema: p.schema === PACKAGE_SCHEMA ? p.schema : NO,
+    version: p.version === 1 ? 1 : NO,
+    type: p.type === PACKAGE_TYPE ? p.type : NO,
+    state: p.state === "valid" || p.state === "invalid" ? p.state : NO,
+    problem: p.problem === null ? null : PACKAGE_PROBLEMS.includes(p.problem) ? p.problem : NO,
+    declaredDigests: Number.isSafeInteger(p.declared_digests) && p.declared_digests >= 0 && p.declared_digests <= 50 ? p.declared_digests : NO,
+    supersededDeclarations: Number.isSafeInteger(p.superseded_declarations) && p.superseded_declarations >= 0 ? p.superseded_declarations : NO,
+  };
+  if (Object.values(out).includes(NO)) return NO;
+  // A valid declaration has no problem and at least one declared file; an invalid one always says why.
+  if ((out.state === "valid") !== (out.problem === null)) return NO;
+  if (out.state === "valid" && out.declaredDigests < 1) return NO;
+  return out;
+}
+
 /** @returns {any | null} the checked artifact list for exactly `taskId`, or null */
 export function checkArtifactList(data, taskId) {
   if (!isObj(data) || data.task_id !== taskId || !isObj(data.task) || !Array.isArray(data.artifacts)) return null;
@@ -143,7 +188,8 @@ export function checkArtifactList(data, taskId) {
   const assignee = str(data.task.assignee ?? null, 64, { nullable: true });
   const review = checkReview(data.review);
   const unregistered = Number.isSafeInteger(data.unregistered_reviewed_digests) && data.unregistered_reviewed_digests >= 0 ? data.unregistered_reviewed_digests : NO;
-  if ([observedAt, ui, title, assignee, review, unregistered].includes(NO) || data.artifacts.length > 200) return null;
+  const pkg = checkPackage(data.package);
+  if ([observedAt, ui, title, assignee, review, unregistered, pkg].includes(NO) || data.artifacts.length > 200) return null;
   const artifacts = [];
   const seen = new Set();
   for (const raw of data.artifacts) {
@@ -153,7 +199,10 @@ export function checkArtifactList(data, taskId) {
     artifacts.push(a);
   }
   for (const a of artifacts) if (a.parentId && !seen.has(a.parentId)) return null;
-  return { taskId, task: { title, assignee, ui }, artifacts, review, unregisteredReviewedDigests: unregistered, publication: PUBLICATION_NOT_BY_BRIDGE, observedAt };
+  if (pkg && !seen.has(pkg.sourceArtifactId)) return null;
+  // `declared` is only meaningful under a valid declaration.
+  if ((!pkg || pkg.state !== "valid") && artifacts.some((a) => a.declared)) return null;
+  return { taskId, task: { title, assignee, ui }, artifacts, review, package: pkg, unregisteredReviewedDigests: unregistered, publication: PUBLICATION_NOT_BY_BRIDGE, observedAt };
 }
 
 function checkLinkedTask(t) {
@@ -194,9 +243,78 @@ export function checkRecordLinks(data) {
   return { links, scannedTasks: data.scanned_tasks, linkageRule, observedAt };
 }
 
+function checkDiscovered(t, { invalid = false } = {}) {
+  if (!isObj(t)) return null;
+  const out = {
+    taskId: typeof t.task_id === "string" && TASK_ID_RE.test(t.task_id) ? t.task_id : NO,
+    title: str(t.title ?? null, 500, { nullable: true }),
+    nativeStatus: t.native_status === "done" || t.native_status === "review" ? t.native_status : NO,
+    createdAt: epoch(t.created_at),
+    completedAt: epoch(t.completed_at),
+    declarationArtifactId: typeof t.declaration_artifact_id === "string" && ARTIFACT_ID_RE.test(t.declaration_artifact_id) ? t.declaration_artifact_id : NO,
+  };
+  if (invalid) out.problem = PACKAGE_PROBLEMS.includes(t.problem) ? t.problem : NO;
+  else out.declaredDigests = Number.isSafeInteger(t.declared_digests) && t.declared_digests >= 1 && t.declared_digests <= 50 ? t.declared_digests : NO;
+  return Object.values(out).includes(NO) ? null : out;
+}
+
+/**
+ * Strict reading of one discovery page for exactly `page`. Every listed task must also be among `checked_task_ids`
+ * (the bridge cannot claim a package it did not check on this page). Fails closed on any malformed entry.
+ */
+export function checkContentPackages(data, page) {
+  if (!isObj(data) || data.page !== page || data.publication !== PUBLICATION_NOT_BY_BRIDGE || data.authority !== "classification_only") return null;
+  const observedAt = iso(data.observed_at, { nullable: false });
+  const rule = str(data.candidate_rule, 500);
+  if (observedAt === NO || rule === NO) return null;
+  if (!Number.isSafeInteger(data.page_size) || data.page_size < 1 || data.page_size > 50) return null;
+  if (!Number.isSafeInteger(data.candidates_total) || data.candidates_total < 0) return null;
+  if (typeof data.has_more !== "boolean" || typeof data.candidates_capped !== "boolean") return null;
+  for (const k of ["checked_task_ids", "packages", "invalid", "failures"]) if (!Array.isArray(data[k]) || data[k].length > data.page_size) return null;
+  const checked = [];
+  for (const id of data.checked_task_ids) {
+    if (typeof id !== "string" || !TASK_ID_RE.test(id) || checked.includes(id)) return null;
+    checked.push(id);
+  }
+  const listed = new Set();
+  const take = (rows, opts) => {
+    const out = [];
+    for (const raw of rows) {
+      const t = checkDiscovered(raw, opts);
+      if (!t || !checked.includes(t.taskId) || listed.has(t.taskId)) return null;
+      listed.add(t.taskId);
+      out.push(t);
+    }
+    return out;
+  };
+  const packages = take(data.packages);
+  const invalid = packages && take(data.invalid, { invalid: true });
+  if (!packages || !invalid) return null;
+  const failures = [];
+  for (const f of data.failures) {
+    if (!isObj(f) || typeof f.task_id !== "string" || !checked.includes(f.task_id) || listed.has(f.task_id)) return null;
+    const code = str(f.code, 64);
+    if (code === NO) return null;
+    listed.add(f.task_id);
+    failures.push({ taskId: f.task_id, code });
+  }
+  const firstIndex = (page - 1) * data.page_size;
+  return {
+    page, pageSize: data.page_size, checkedTaskIds: checked, packages, invalid, failures,
+    candidatesTotal: data.candidates_total, candidatesCapped: data.candidates_capped, hasMore: data.has_more,
+    // Positions (1-based) of the candidates checked on this page, for an honest "checked X–Y of Z" line.
+    range: checked.length ? { from: firstIndex + 1, to: firstIndex + checked.length } : null,
+    candidateRule: rule, observedAt,
+  };
+}
+
 /** True only when the connected bridge itself advertises the read (an older running bridge does not). */
 export function artifactsSupported(caps) {
   return Boolean(caps && Array.isArray(caps.ops) && caps.ops.includes(ARTIFACTS_OP));
+}
+
+export function contentPackagesSupported(caps) {
+  return Boolean(caps && Array.isArray(caps.ops) && caps.ops.includes(CONTENT_PACKAGES_OP));
 }
 
 export function recordLinksSupported(caps) {
@@ -217,6 +335,15 @@ export async function fetchRecordLinks(config, options = {}) {
   const res = await bridgeGet(config, "/v0/record-links", { maxBytes: RECORD_LINKS_MAX_BYTES, ...options });
   if (!res.ok) return res;
   const value = checkRecordLinks(res.data);
+  return value ? { ok: true, ...value } : failure("bad_payload", "schema_mismatch");
+}
+
+export async function fetchContentPackages(config, page = 1, options = {}) {
+  if (!Number.isSafeInteger(page) || page < 1 || page > CONTENT_PACKAGES_MAX_PAGE) return failure("not_found", "invalid_page");
+  const target = page === 1 ? "/v0/content-packages" : `/v0/content-packages?page=${page}`;
+  const res = await bridgeGet(config, target, { maxBytes: CONTENT_PACKAGES_MAX_BYTES, timeoutMs: CONTENT_PACKAGES_TIMEOUT_MS, ...options });
+  if (!res.ok) return res;
+  const value = checkContentPackages(res.data, page);
   return value ? { ok: true, ...value } : failure("bad_payload", "schema_mismatch");
 }
 
@@ -284,13 +411,37 @@ export async function fetchArtifactBytes(config, taskId, artifactId, options = {
 
 // ---- view helpers -----------------------------------------------------------------------------------------
 
-// Tasks explicitly declared as content draft packages (the completed Milo package, native done, run 17). Only these
-// are ever labelled draft / ready-for-review. Any other finished task is shown with neutral "Result files": a task
-// title, state or missing receipt says nothing about whether it is a draft or whether it was released.
-export const DRAFT_PACKAGE_TASKS = ["t_11191492"];
+// Content draft packages are classified by a VALID typed declaration (content-package.json, schema
+// mission-control.content-package v1) registered on the task itself, validated by the bridge. The one package that
+// predates declarations (the first Milo first-buyer package, native done, run 17) stays recognised by id; no new id is
+// ever added here. Any other finished task is neutral "Result files": a title, assignee, state or missing receipt
+// says nothing about whether it is a draft or whether it was released. A declaration is classification only.
+export const LEGACY_DRAFT_PACKAGE_TASKS = ["t_11191492"];
 
-export function isDraftPackage(taskId) {
-  return DRAFT_PACKAGE_TASKS.includes(taskId);
+/** @param {{ taskId: string, package?: { state: string } | null }} list */
+export function isDraftPackage(list) {
+  if (!list || typeof list.taskId !== "string") return false;
+  if (list.package && list.package.state === "valid") return true;
+  return LEGACY_DRAFT_PACKAGE_TASKS.includes(list.taskId);
+}
+
+/** How the package was classified: "declared" (valid declaration), "legacy" (pre-declaration id) or null. */
+export function packageBasis(list) {
+  if (list?.package?.state === "valid") return "declared";
+  return list && LEGACY_DRAFT_PACKAGE_TASKS.includes(list.taskId) ? "legacy" : null;
+}
+
+/**
+ * For a declared package: every declared digest is carried by a readable declared file that the receipt also lists.
+ * A receipt that reviewed only some of the declared files does not make the package ready.
+ */
+export function declaredFilesReviewed(list) {
+  const p = list.package;
+  if (!p || p.state !== "valid") return false;
+  const declared = new Set(list.artifacts.filter((a) => a.declared && a.readable && a.sha256).map((a) => a.sha256));
+  if (declared.size !== p.declaredDigests) return false;
+  const reviewed = new Set(list.artifacts.filter((a) => a.declared && a.readable && a.reviewed && a.sha256).map((a) => a.sha256));
+  return reviewed.size === declared.size;
 }
 
 /**
@@ -310,11 +461,13 @@ export function hasCoveringReceipt(list) {
  * Draft / ready-for-review stage, only for declared draft packages. "Published" is never derived here: the bridge does
  * not publish and reports `not_published_by_bridge`; publication needs separate provider confirmation.
  */
-export function reviewStage(list, { draftPackage = isDraftPackage(list.taskId) } = {}) {
+export function reviewStage(list, { draftPackage = isDraftPackage(list) } = {}) {
   const readable = list.artifacts.filter((a) => a.readable);
   if (readable.length === 0) return { stage: "no_files", label: "No readable result files", tone: "neutral" };
   if (!draftPackage) return { stage: "result_files", label: "Result files", tone: "neutral" };
-  if (hasCoveringReceipt(list)) return { stage: "ready_for_review", label: "Ready for review (draft)", tone: "warn" };
+  const covered = hasCoveringReceipt(list) && (packageBasis(list) !== "declared" || declaredFilesReviewed(list));
+  if (covered) return { stage: "ready_for_review", label: "Ready for review (draft)", tone: "warn" };
+  if (hasCoveringReceipt(list)) return { stage: "draft", label: "Draft (review incomplete)", tone: "neutral" };
   return { stage: "draft", label: "Draft (not reviewed)", tone: "neutral" };
 }
 
@@ -322,9 +475,9 @@ export function reviewStage(list, { draftPackage = isDraftPackage(list.taskId) }
  * Publication is unknown here: no trusted provider-confirmation schema is read, and a missing receipt or a title proves
  * nothing either way. A covering receipt on a declared draft package only bounds what that review itself decided.
  */
-export function publicationStatus(list, { draftPackage = isDraftPackage(list.taskId) } = {}) {
+export function publicationStatus(list, { draftPackage = isDraftPackage(list) } = {}) {
   let boundary = null;
-  if (draftPackage && hasCoveringReceipt(list)) {
+  if (draftPackage && reviewStage(list, { draftPackage }).stage === "ready_for_review") {
     boundary = list.review.publicationAuthorized
       ? "This review recorded publication authorization; that is not a release, and no provider confirmation is read here"
       : "This review did not authorize publication";
@@ -367,6 +520,31 @@ export function groupArtifacts(artifacts) {
   const other = artifacts.filter((a) => a.readable && !a.reviewed);
   const unavailable = artifacts.filter((a) => !a.readable);
   return { top, reviewed, duplicates, other, unavailable };
+}
+
+/** Content page number from the URL: 1..CONTENT_PACKAGES_MAX_PAGE, or null for anything else (never coerced). */
+export function parseContentPage(raw) {
+  if (raw === undefined || raw === null) return 1;
+  if (typeof raw !== "string" || !/^[1-9]\d{0,2}$/.test(raw)) return null;
+  const n = Number(raw);
+  return n <= CONTENT_PACKAGES_MAX_PAGE ? n : null;
+}
+
+/** Exactly what one discovery page checked, for the owner. Never claims the whole board was scanned. */
+export function discoverySummary(d) {
+  if (!d.range) {
+    return d.candidatesTotal === 0
+      ? "No finished (done or review) tasks to check."
+      : `Page ${d.page} is past the last of ${d.candidatesTotal} finished task${d.candidatesTotal === 1 ? "" : "s"}.`;
+  }
+  const found = d.packages.length;
+  const parts = [
+    `Checked finished tasks ${d.range.from}–${d.range.to} of ${d.candidatesTotal}${d.candidatesCapped ? "+" : ""} (newest first) for a typed content-package declaration`,
+    `${found} declared package${found === 1 ? "" : "s"} on this page`,
+  ];
+  if (d.invalid.length) parts.push(`${d.invalid.length} declaration${d.invalid.length === 1 ? "" : "s"} rejected`);
+  if (d.failures.length) parts.push(`${d.failures.length} task${d.failures.length === 1 ? "" : "s"} could not be checked`);
+  return `${parts.join("; ")}.`;
 }
 
 export function formatBytes(n) {
