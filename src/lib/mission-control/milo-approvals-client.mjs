@@ -5,6 +5,9 @@
 // Labels here are Airtable values, not Mission Control facts. "Approved" records permission only; "In Progress" or
 // "Verified / Done" are labels someone set in Airtable and say nothing verified about execution, task linkage or output.
 
+// Client-safe (no node builtins) so the /milo-approvals page can show it without pulling in the server decision module.
+export const DECISION_BOUNDARY = "Approval records permission; execution is confirmed by a linked task.";
+
 export const MILO_DEFAULT_BASE_ID = "app9j7s9BTPr8UglD";
 export const MILO_DEFAULT_TABLE_ID = "tblMixrIAukHjqBKl";
 export const MILO_PAGE_SIZE = 100;

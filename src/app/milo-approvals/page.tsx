@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { SOURCE_STATE_TONES, joinSourceCards } from "@/lib/mission-control/source-cards.mjs";
-import { DECISION_BOUNDARY } from "@/lib/mission-control/milo-legacy-decision.mjs";
+import { DECISION_BOUNDARY } from "@/lib/mission-control/milo-approvals-client.mjs";
 
 type Approval = {
   id: string;
@@ -64,6 +64,12 @@ function effectMessage(effect: string | undefined) {
   if (effect === "decision_recorded") return "Decision recorded.";
   if (effect === "fields_saved") return "Notes saved.";
   return "Nothing changed.";
+}
+
+// The decision is saved either way; a failed signal only means the supervisor learns of it at its next full read.
+function signalMessage(signal: { state?: string; code?: string } | undefined) {
+  if (!signal || signal.state === "sent") return "";
+  return ` The decision is saved, but the supervisor was not notified (${signal.state === "failed" ? signal.code || "failed" : "bridge not configured"}).`;
 }
 
 export default function MiloApprovalsPage() {
@@ -140,7 +146,7 @@ export default function MiloApprovalsPage() {
       return;
     }
 
-    setMessage(`${approval.title || "Card"}: ${effectMessage(data.effect)}`);
+    setMessage(`${approval.title || "Card"}: ${effectMessage(data.effect)}${signalMessage(data.signal)}`);
     await loadApprovals();
   }
 

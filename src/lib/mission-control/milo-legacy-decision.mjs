@@ -2,13 +2,15 @@
 // fixtures only; no env access, no logging. Recording a decision is permission, never worker execution: approve never
 // writes "In Progress", repeats never rewrite Decision / Approved At, a completed outcome is never downgraded, evidence
 // is never touched, and notes are only cleared when the caller explicitly says so.
-import { miloHeaders, miloTableUrl, normalizeLegacyRecord } from "./milo-approvals-client.mjs";
+import { approvalSignalVersion } from "./approval-signal-version.mjs";
+import { DECISION_BOUNDARY, miloHeaders, miloTableUrl, normalizeLegacyRecord } from "./milo-approvals-client.mjs";
+
+export { approvalSignalVersion, DECISION_BOUNDARY };
 
 export const RECORD_ID_RE = /^rec[A-Za-z0-9]{14}$/;
 export const LEGACY_ACTIONS = ["approve", "reject", "needs_changes", "notes", "status"];
 export const LEGACY_STATUSES = ["Drafted by Milo", "Hermie Reviewed", "Needs Fonz Approval", "Approved", "Verified / Done", "Rejected / Parked"];
 export const MAX_NOTES = 5000;
-export const DECISION_BOUNDARY = "Approval records permission; execution is confirmed by a linked task.";
 
 const DECISIONS = { approve: "Approved", reject: "Rejected", needs_changes: "Needs Changes" };
 const DECISION_STATUS = { approve: "Approved", reject: "Rejected / Parked", needs_changes: "Hermie Reviewed" };
@@ -128,5 +130,9 @@ export async function applyLegacyDecision(config, rawBody, { transport = default
     return { httpStatus: response.status, body: { ok: false, error: "Airtable update failed.", detail: text.slice(0, 500) } };
   }
   const updated = await response.json().catch(() => null);
-  return { httpStatus: 200, body: { ok: true, ...meta, approval: updated ? normalizeLegacyRecord(updated) : normalizeLegacyRecord(record) } };
+  // Only a saved change produces a signal (record/version ids only). Without a trustworthy updated record the version is
+  // unknown; the signal still asks for a fresh read because it can never match the old snapshot.
+  const savedFields = updated && updated.id === req.id && updated.fields && typeof updated.fields === "object" ? updated.fields : null;
+  const signal = { record: req.id, version: approvalSignalVersion(savedFields ?? { ...record.fields, ...plan.fields }) };
+  return { httpStatus: 200, signal, body: { ok: true, ...meta, approval: updated ? normalizeLegacyRecord(updated) : normalizeLegacyRecord(record) } };
 }

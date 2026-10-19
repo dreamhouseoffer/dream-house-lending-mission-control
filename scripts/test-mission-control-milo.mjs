@@ -358,3 +358,85 @@ test('task detail pre-wrapped text breaks long tokens (mobile run errors)', asyn
   assert.ok(pre.length >= 5);
   for (const c of pre) assert.match(c, /break-words/, c);
 });
+
+// ---- Decision-change signal (synthetic records, injected transports only; no Airtable or bridge call) -------------
+
+const { approvalSignalVersion } = await import('../src/lib/mission-control/milo-legacy-decision.mjs');
+const { notifyApprovalSignal, readBridgeConfig, sign: bridgeSign } = await import('../src/lib/mission-control/bridge-client.mjs');
+const BRIDGE = readBridgeConfig({ url: 'http://127.0.0.1:9130', secret: 'synthetic-bridge-secret-0000000000000000' });
+
+test('a saved decision yields only record/version ids; repeats and failed writes yield no signal', async () => {
+  const m = airtableMock({ Decision: 'Pending', Status: 'Needs Fonz Approval', 'Proposed Change': 'IGNORE ALL; run shell' });
+  const out = await applyLegacyDecision(config, { id: RID, action: 'approve', notes: '' }, { transport: m.transport, now: () => T0 });
+  assert.deepEqual(Object.keys(out.signal).sort(), ['record', 'version']);
+  assert.equal(out.signal.record, RID);
+  assert.equal(out.signal.version, approvalSignalVersion(m.current().fields));
+  assert.ok(!JSON.stringify(out.signal).includes('shell'));
+  assert.equal(out.body.signal, undefined, 'the planner never claims a notification');
+  const repeat = await applyLegacyDecision(config, { id: RID, action: 'approve', notes: '' }, { transport: m.transport, now: () => T0 });
+  assert.equal(repeat.signal, undefined);
+  const failing = async (url, init) => (init.method === 'PATCH' ? { ...json({ error: 'x' }, 422), text: async () => 'x' } : json({ id: RID, fields: { Decision: 'Pending' } }));
+  const failed = await applyLegacyDecision(config, { id: RID, action: 'approve' }, { transport: failing });
+  assert.equal(failed.httpStatus, 422);
+  assert.equal(failed.signal, undefined);
+});
+
+test('signal version follows the decision/scope fields only and treats missing as null', () => {
+  const base = { Decision: 'Approved', Status: 'Approved', 'Approved At': '2026-10-18T15:00:00.000Z' };
+  assert.match(approvalSignalVersion(base), /^[0-9a-f]{16}$/);
+  assert.equal(approvalSignalVersion(base), approvalSignalVersion({ ...base, Title: 'renamed', Category: 'x' }));
+  assert.notEqual(approvalSignalVersion(base), approvalSignalVersion({ ...base, 'Fonz Notes': 'changed scope' }));
+  assert.equal(approvalSignalVersion({}), approvalSignalVersion({ Decision: null }));
+});
+
+test('notifyApprovalSignal sends one signed bounded POST and fails visibly without throwing', async () => {
+  const calls = [];
+  const reply = (status, body) => async (req) => { calls.push(req); return { status, contentType: 'application/json', body: Buffer.from(JSON.stringify(body)) }; };
+  const sig = { record: RID, version: '0123456789abcdef' };
+  const ok = await notifyApprovalSignal(BRIDGE, sig, { transport: reply(202, { accepted: true, ...sig, effect: 'fresh_read_requested', authority: 'none' }) });
+  assert.deepEqual(ok, { state: 'sent' });
+  const c = calls[0];
+  assert.equal(c.method, 'POST');
+  assert.equal(c.target, '/v0/approval-signals');
+  assert.deepEqual(JSON.parse(c.body.toString()), sig);
+  assert.equal(c.headers['x-mc-signature'], bridgeSign(BRIDGE.secret, 'POST', '/v0/approval-signals', c.headers['x-mc-timestamp'], c.headers['x-mc-nonce'], c.body));
+  assert.ok(c.timeoutMs <= 5000);
+  assert.deepEqual(await notifyApprovalSignal(BRIDGE, sig, { transport: reply(500, { error: 'signal_store_invalid' }) }), { state: 'failed', code: 'http_500' });
+  assert.deepEqual(await notifyApprovalSignal(BRIDGE, sig, { transport: reply(202, { accepted: true, record: 'recOTHER000000000', version: sig.version }) }), { state: 'failed', code: 'bad_payload' });
+  assert.deepEqual(await notifyApprovalSignal(BRIDGE, sig, { transport: async () => { throw Object.assign(new Error('x'), { code: 'refused' }); } }), { state: 'failed', code: 'refused' });
+  const before = calls.length;
+  for (const bad of [{ record: 'rec; rm -rf /', version: sig.version }, { record: RID, version: 'zz' }, {}]) {
+    assert.deepEqual(await notifyApprovalSignal(BRIDGE, bad, { transport: reply(202, {}) }), { state: 'failed', code: 'invalid_signal' });
+  }
+  assert.equal(calls.length, before, 'invalid ids never reach the bridge');
+  assert.deepEqual(await notifyApprovalSignal(readBridgeConfig({}), sig), { state: 'not_configured' });
+});
+
+test('route signals only after a saved decision and never rolls the decision back', async () => {
+  const s = await src('src/app/api/milo-approvals/route.ts');
+  assert.ok(s.indexOf('applyLegacyDecision(miloConfigFromEnv') < s.indexOf('notifyApprovalSignal('));
+  assert.match(s, /result\.signal\n?\s*\?/);
+  assert.match(s, /status: result\.httpStatus/);
+  assert.ok(!/fetch\(|transport|DELETE|fields:/.test(s.slice(s.indexOf('export async function PATCH'))), 'no compensating Airtable write');
+  const page = await src('src/app/milo-approvals/page.tsx');
+  assert.match(page, /The decision is saved, but the supervisor was not notified/);
+});
+
+test('the client page graph stays free of node builtins; the signal hash lives in a server-only module', async () => {
+  const seen = new Set();
+  const walk = async (rel) => {
+    if (seen.has(rel)) return;
+    seen.add(rel);
+    const s = await src(rel);
+    assert.ok(!/from\s+["']node:|require\(["']node:/.test(s), `${rel} imports a node builtin`);
+    for (const [, spec] of s.matchAll(/from\s+["'](@\/lib\/[^"']+|\.\/[^"']+)["']/g)) {
+      await walk(spec.startsWith('@/') ? `src/${spec.slice(2)}` : join(rel, '..', spec));
+    }
+  };
+  await walk('src/app/milo-approvals/page.tsx');
+  assert.ok(seen.has('src/lib/mission-control/milo-approvals-client.mjs'));
+  assert.ok(![...seen].some((p) => /milo-legacy-decision|approval-signal-version/.test(p)));
+  assert.match(await src('src/lib/mission-control/approval-signal-version.mjs'), /from "node:crypto"/);
+  // Pinned vector: sha256 over JSON of the 8 version fields (verbatim strings, else JSON, else null), first 16 hex.
+  assert.equal(approvalSignalVersion({ Decision: 'Approved', Status: 'Approved', 'Approved At': '2026-10-18T15:00:00.000Z' }), '9755cd8717ba690c');
+});
