@@ -96,11 +96,11 @@ export default async function TaskDetailPage({ params, searchParams = {} }: { pa
         {latestSummary ? (
           <details className="group">
             <summary className="cursor-pointer list-none">
-              <p className="line-clamp-2 whitespace-pre-wrap text-sm leading-6 text-slate-200 group-open:hidden">{latestSummary}</p>
+              <p className="line-clamp-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-200 group-open:hidden">{latestSummary}</p>
               <span className="text-xs font-medium text-teal-300 group-open:hidden">Show full summary</span>
               <span className="hidden text-xs font-medium text-teal-300 group-open:inline">Hide full summary</span>
             </summary>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-200">{latestSummary}</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-200">{latestSummary}</p>
           </details>
         ) : (
           <StateNotice kind={task.ui.state === "failed" ? "error" : "empty"} title={task.ui.state === "failed" ? "Task failed without a result summary" : TERMINAL.has(task.ui.state) ? "No result summary recorded" : "No result yet"}>
@@ -115,7 +115,7 @@ export default async function TaskDetailPage({ params, searchParams = {} }: { pa
             <summary className="cursor-pointer text-sm text-slate-300">
               <span className="line-clamp-2 inline">{text(task.body).slice(0, 220)}</span> <span className="text-xs font-medium text-teal-300">Show full instructions</span>
             </summary>
-            <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-300">{text(task.body)}</p>
+            <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-slate-300">{text(task.body)}</p>
           </details>
         </Section>
       )}
@@ -133,8 +133,8 @@ export default async function TaskDetailPage({ params, searchParams = {} }: { pa
                 <p>
                   started {formatTime(r.started_at)} · ended {r.ended_at ? formatTime(r.ended_at) : "open"}
                 </p>
-                {r.summary && <p className="mt-1 line-clamp-2 whitespace-pre-wrap text-slate-300" title={text(r.summary).slice(0, 500)}>{text(r.summary)}</p>}
-                {r.error && <p className="mt-1 whitespace-pre-wrap text-rose-300">{text(r.error)}</p>}
+                {r.summary && <p className="mt-1 line-clamp-2 whitespace-pre-wrap break-words text-slate-300" title={text(r.summary).slice(0, 500)}>{text(r.summary)}</p>}
+                {r.error && <p className="mt-1 whitespace-pre-wrap break-words text-rose-300">{text(r.error)}</p>}
               </li>
             ))}
           </ul>
