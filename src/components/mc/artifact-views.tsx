@@ -5,6 +5,7 @@ import { Download, Eye } from "lucide-react";
 import { StateNotice, StatusChip, type Tone } from "@/components/mc/ui";
 import {
   ARTIFACT_PROBLEM_TEXT,
+  PACKAGE_PROBLEM_TEXT,
   artifactDownloadHref,
   artifactHref,
   formatBytes,
@@ -136,6 +137,13 @@ export function ReviewStatus({ list }: { list: ArtifactList }) {
       <p className="text-xs leading-5 text-slate-400">
         {publication.label}.{publication.boundary ? ` ${publication.boundary}.` : ""}
       </p>
+      {list.package && (
+        <p className="break-words text-xs leading-5 text-slate-500" data-testid="package-declaration">
+          {list.package.state === "valid"
+            ? `Declared content package (${list.package.sourceArtifactId}): ${list.package.declaredDigests} file${list.package.declaredDigests === 1 ? "" : "s"}. A declaration classifies the task only; it is not a review, approval or publication.`
+            : `Package declaration ${list.package.sourceArtifactId} rejected: ${PACKAGE_PROBLEM_TEXT[list.package.problem as keyof typeof PACKAGE_PROBLEM_TEXT] ?? list.package.problem}. Shown as result files.`}
+        </p>
+      )}
       {list.review && (
         <details className="rounded-lg border border-slate-800 bg-slate-900/40 px-3 py-2 text-xs leading-5 text-slate-400">
           <summary className="cursor-pointer font-medium text-slate-300">Review receipt (read record only)</summary>
