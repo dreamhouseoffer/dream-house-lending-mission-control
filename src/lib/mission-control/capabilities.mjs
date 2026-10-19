@@ -69,7 +69,7 @@ export const SOURCES = {
   },
   milo: {
     id: "milo",
-    label: "Milo approvals (Airtable)",
+    label: "Milo Growth Board (Airtable)",
     state: "unverified",
     detail: "Retained module reads Airtable server-side. Connection health is not checked from this page.",
     href: "/milo-approvals",
@@ -256,7 +256,7 @@ export const MODULE_NAV = [
     items: [
       { href: "/pipeline", label: "Pipeline" },
       { href: "/ask", label: "Ask Hermes" },
-      { href: "/milo-approvals", label: "Milo approvals" },
+      { href: "/milo-approvals", label: "Milo Growth Board" },
       { href: "/headquarters", label: "Headquarters" },
       { href: "/briefs", label: "Briefs" },
       { href: "/content/training", label: "Loan training" },
