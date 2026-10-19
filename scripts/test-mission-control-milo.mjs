@@ -351,3 +351,10 @@ test('legacy page is a concise card list with details, evidence-backed status an
   assert.ok(!/title\.includes|\.title\s*===|match\(.*title/i.test(s), 'never links by title');
   assert.match(DECISION_BOUNDARY, /Approval records permission; execution is confirmed by a linked task/);
 });
+
+test('task detail pre-wrapped text breaks long tokens (mobile run errors)', async () => {
+  const s = await src('src/app/tasks/[id]/page.tsx');
+  const pre = s.match(/className="[^"]*whitespace-pre-wrap[^"]*"/g) ?? [];
+  assert.ok(pre.length >= 5);
+  for (const c of pre) assert.match(c, /break-words/, c);
+});
