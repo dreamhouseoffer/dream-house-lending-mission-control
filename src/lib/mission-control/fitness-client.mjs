@@ -1,6 +1,6 @@
 // Body OS server-side signed bridge calls (route handlers only). Pure helpers live in fitness-model.mjs.
 import { bridgeGet, bridgeRequest } from "./bridge-client.mjs";
-import { IDEM_RE, checkLogs, checkPlan, checkWhoop, validateSetInput } from "./fitness-model.mjs";
+import { IDEM_RE, REVISION_RE, checkLogs, checkPlan, checkWhoop, validateEditInput, validateSetInput } from "./fitness-model.mjs";
 
 import { checkAuthorizationUrl, checkOAuthStatus, validateClientInput } from "./whoop-oauth-model.mjs";
 
@@ -73,6 +73,23 @@ export async function postSet(config, set, key, options = {}) {
   const d = res.data;
   if ((res.status === 200 || res.status === 201) && isObj(d) && d.outcome === "saved" && ENTRY(d.set) && d.set.key === key) {
     return { outcome: "saved", deduplicated: d.deduplicated === true, set: d.set };
+  }
+  const code = isObj(d) && typeof d.error === "string" && /^[a-z_]{1,40}$/.test(d.error) ? d.error : "bad_payload";
+  if (res.status === 409) return { outcome: "conflict", code };
+  if (res.status === 507) return { outcome: "unavailable", code };
+  return res.status >= 400 && res.status < 500 ? { outcome: "rejected", code } : { outcome: "unavailable", code: "bad_payload" };
+}
+
+/** Signed POST of one validated edit (op key = Idempotency-Key). Returns { outcome: "updated"|"unchanged", deduplicated, set } |
+ * { outcome: "rejected"|"conflict"|"unavailable", code }. Only an answer for the same row with a revision is accepted. */
+export async function postEdit(config, input, opKey, options = {}) {
+  if (validateEditInput(input) !== null || !IDEM_RE.test(opKey)) return { outcome: "rejected", code: "invalid_input" };
+  const res = await bridgeRequest(config, "POST", "/v0/fitness/sets/edit", { ...options, body: input, idempotencyKey: opKey, acceptStatus: [200, 400, 404, 409, 413, 415, 507] });
+  if (!res.ok) return { outcome: "unavailable", code: res.code };
+  const d = res.data;
+  if (res.status === 200 && isObj(d) && (d.outcome === "updated" || d.outcome === "unchanged") && ENTRY(d.set) && d.set.key === input.key
+    && typeof d.set.revision === "string" && REVISION_RE.test(d.set.revision)) {
+    return { outcome: d.outcome, deduplicated: d.deduplicated === true, set: d.set };
   }
   const code = isObj(d) && typeof d.error === "string" && /^[a-z_]{1,40}$/.test(d.error) ? d.error : "bad_payload";
   if (res.status === 409) return { outcome: "conflict", code };
