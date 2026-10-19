@@ -140,6 +140,8 @@ function checkArtifact(a) {
   return out;
 }
 
+export const REVIEW_DECISION_MAX = 300;
+
 function checkReview(r) {
   if (r === null || r === undefined) return null;
   if (!isObj(r)) return NO;
@@ -148,7 +150,8 @@ function checkReview(r) {
     sourceArtifactId: typeof r.source_artifact_id === "string" && ARTIFACT_ID_RE.test(r.source_artifact_id) ? r.source_artifact_id : NO,
     reviewer: str(r.reviewer ?? null, 200, { nullable: true }),
     reviewedAt: iso(r.reviewed_at ?? null),
-    decision: str(r.decision ?? null, 200, { nullable: true }),
+    // Same bound as the bridge (MAX_REVIEW_TEXT): it slices review_decision to 300, so a longer value is not trusted.
+    decision: str(r.decision ?? null, REVIEW_DECISION_MAX, { nullable: true }),
     publicationAuthorized: typeof r.publication_authorized === "boolean" ? r.publication_authorized : NO,
     websiteChanged: typeof r.website_changed === "boolean" || r.website_changed === null ? r.website_changed : NO,
     reviewedDigests: Number.isSafeInteger(r.reviewed_digests) && r.reviewed_digests >= 0 ? r.reviewed_digests : NO,

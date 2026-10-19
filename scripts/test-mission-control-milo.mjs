@@ -332,20 +332,24 @@ test('legacy normalizer exposes raw saved status/decision without its display de
   assert.equal(normalizeLegacyRecord({ id: 'recA', fields: { Status: 'In Progress', Decision: 'Approved' } }).savedStatus, 'In Progress');
 });
 
-test('legacy page is a concise card list with details, evidence-backed status and no execute action', async () => {
+test('Milo Growth Board page: five read-only lanes, compact cards, full details and no execute action', async () => {
   const s = await src('src/app/milo-approvals/page.tsx');
   assert.ok(!/grid-cols-7|min-w-\[1180px\]/.test(s), 'no 7-column wall');
   assert.ok(!/queue execution|Approve \+ queue/i.test(s), 'approval is never labelled as queuing execution');
+  assert.ok(!/draggable|onDrag|@hello-pangea\/dnd/.test(s), 'no drag transitions');
+  assert.match(s, /Milo Growth Board/);
   assert.match(s, /Record approval \(permission only\)/);
   assert.match(s, /DECISION_BOUNDARY/);
-  assert.match(s, /<details/);
+  assert.match(s, /buildMiloBoard\(/);
+  assert.match(s, /fetch\("\/api\/control\/milo-board"/);
+  assert.match(s, /fetch\("\/api\/milo-approvals"/);
+  assert.match(s, /lg:grid-cols-5/);
+  assert.match(s, /role="tablist"/);
   assert.match(s, /line-clamp-2/);
-  assert.match(s, /joinSourceCards\(cards, links\)/);
-  assert.match(s, /fetch\("\/api\/control\/record-links"/);
   assert.match(s, /savedStatus/);
-  assert.match(s, /Unknown \(task links could not be read\)/);
   assert.match(s, /href="\/approvals"/);
   assert.match(s, /href="\/content"/);
+  assert.match(s, /document\.visibilityState === "visible"/, 'foreground-only polling');
   for (const action of ['"approve"', '"needs_changes"', '"reject"', '"notes"']) assert.ok(s.includes(`onAction(${action})`), action);
   assert.ok(!/onAction\("execute"\)|>\s*Execute\s*</.test(s), 'no execute button');
   assert.ok(!/title\.includes|\.title\s*===|match\(.*title/i.test(s), 'never links by title');

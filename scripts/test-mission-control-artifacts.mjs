@@ -29,6 +29,7 @@ import {
   packageBasis,
   parseContentPage,
   LEGACY_DRAFT_PACKAGE_TASKS,
+  REVIEW_DECISION_MAX,
 } from "../src/lib/mission-control/artifacts-client.mjs";
 import { joinSourceCards, sourceCardState, sourceNextAction } from "../src/lib/mission-control/source-cards.mjs";
 import { activityCandidates, nativeActivity, officeRoster, HEARTBEAT_MAX_AGE_MS } from "../src/lib/mission-control/office-model.mjs";
@@ -112,6 +113,25 @@ test("declared draft package with a covering receipt is ready for review; the re
   assert.equal(publicationStatus(noReview).boundary, null);
   assert.equal(previewKind("text/markdown; charset=utf-8"), "markdown");
   assert.equal(previewKind("application/zip"), null);
+});
+
+test("review_decision matches the bridge 300-character bound exactly; other review limits are unchanged", () => {
+  assert.equal(REVIEW_DECISION_MAX, 300);
+  for (const n of [205, 300]) {
+    const l = checkArtifactList(list({ review: { ...list().review, decision: "d".repeat(n) } }), T);
+    assert.ok(l, `length ${n} accepted`);
+    assert.equal(l.review.decision.length, n, "kept verbatim, not sliced");
+  }
+  assert.equal(checkArtifactList(list({ review: { ...list().review, decision: "d".repeat(301) } }), T), null, "length 301 refused");
+  assert.equal(checkArtifactList(list({ review: { ...list().review, decision: "ok\u0007" } }), T), null, "control chars still refused");
+  assert.equal(checkArtifactList(list({ review: { ...list().review, decision: 7 } }), T), null, "non-string refused");
+  assert.equal(checkArtifactList(list({ review: { ...list().review, decision: null } }), T).review.decision, null);
+  // Other review bounds stay as they were.
+  assert.ok(checkArtifactList(list({ review: { ...list().review, reviewer: "r".repeat(200) } }), T));
+  assert.equal(checkArtifactList(list({ review: { ...list().review, reviewer: "r".repeat(201) } }), T), null);
+  assert.equal(checkArtifactList(list({ review: { ...list().review, reviewed_at: "x".repeat(65) } }), T), null);
+  assert.equal(checkArtifactList(list({ review: { ...list().review, limitations: "x" } }), T), null);
+  assert.equal(checkArtifactList(list({ review: { ...list().review, source_artifact_id: "../a19" } }), T), null);
 });
 
 test("a receipt must actually cover registered readable files before it counts", () => {
