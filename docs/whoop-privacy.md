@@ -10,6 +10,8 @@ When the owner authorizes WHOOP access, Body OS requests the read permissions ne
 This information is used for personal tracking and training planning, not diagnosis, treatment or clearance to exercise an injury. A readiness score does not override clinical restrictions.
 
 ## Storage and access
+Essential cookies maintain Mission Control sign-in and protect the short-lived WHOOP authorization handoff. WHOOP returns a one-time authorization code to the registered callback; it is processed server-side and is not displayed in the fitness dashboard.
+
 The primary fitness log and integration credentials are stored in private files on the owner's computer. WHOOP responses may be cached temporarily in the running service. The dashboard is hosted through Vercel and uses an authenticated connection to that computer, so information displayed remotely passes through the dashboard's hosting and connection providers. Those providers may process normal request metadata and operational logs. Access to fitness views requires Mission Control sign-in. WHOOP client secrets and access/refresh tokens are not displayed in the dashboard or committed to its public source repository.
 
 ## Sharing
