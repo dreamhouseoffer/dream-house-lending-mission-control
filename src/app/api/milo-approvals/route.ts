@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { notifyApprovalSignal, readBridgeConfig } from "@/lib/mission-control/bridge-client.mjs";
 import { legacyListUrl, miloHeaders, normalizeLegacyRecord } from "@/lib/mission-control/milo-approvals-client.mjs";
 import { applyLegacyDecision } from "@/lib/mission-control/milo-legacy-decision.mjs";
 import { miloConfigFromEnv } from "@/lib/mission-control/milo-approvals";
@@ -44,5 +45,10 @@ export async function PATCH(request: Request) {
   }
   const body = await request.json().catch(() => null);
   const result = await applyLegacyDecision(miloConfigFromEnv(), body);
-  return NextResponse.json(result.body, { status: result.httpStatus, headers: { "Cache-Control": "no-store" } });
+  // After a SAVED change only: a signed record/version signal to the owned bridge so the supervisor re-reads the source.
+  // Its failure is reported, never a rollback of the saved Airtable decision.
+  const responseBody = result.signal
+    ? { ...result.body, signal: await notifyApprovalSignal(readBridgeConfig({ url: process.env.MC_BRIDGE_URL, secret: process.env.MC_BRIDGE_SECRET }), result.signal) }
+    : result.body;
+  return NextResponse.json(responseBody, { status: result.httpStatus, headers: { "Cache-Control": "no-store" } });
 }

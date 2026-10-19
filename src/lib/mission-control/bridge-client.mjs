@@ -247,6 +247,27 @@ export async function reportLoginAttempt(config, { key, matched } = {}, options 
   return checkAttemptResponse(res.status, res.data);
 }
 
+const SIGNAL_RECORD_RE = /^rec[A-Za-z0-9]{14}$/;
+const SIGNAL_VERSION_RE = /^[0-9a-f]{16}$/;
+export const SIGNAL_TIMEOUT_MS = 5_000;
+
+/**
+ * Signed POST /v0/approval-signals after an owner decision was SAVED. Carries record/version ids only; the bridge writes
+ * them to a fixed private file the supervisor's monitor reads. Not approval, consent or execution. Never throws; returns
+ * { state: "sent" } | { state: "not_configured" } | { state: "failed", code }. A failure never undoes the saved decision.
+ */
+export async function notifyApprovalSignal(config, { record, version } = {}, options = {}) {
+  if (typeof record !== "string" || !SIGNAL_RECORD_RE.test(record) || typeof version !== "string" || !SIGNAL_VERSION_RE.test(version)) {
+    return { state: "failed", code: "invalid_signal" };
+  }
+  if (!config || !config.configured) return { state: "not_configured" };
+  const res = await bridgeRequest(config, "POST", "/v0/approval-signals", { timeoutMs: SIGNAL_TIMEOUT_MS, ...options, body: { record, version }, acceptStatus: [202] });
+  if (!res.ok) return { state: "failed", code: res.code };
+  const d = res.data;
+  if (!isObj(d) || d.accepted !== true || d.record !== record || d.version !== version) return { state: "failed", code: "bad_payload" };
+  return { state: "sent" };
+}
+
 // ---- payload checking -------------------------------------------------------------------------------------
 
 const isObj = (v) => Boolean(v) && typeof v === "object" && !Array.isArray(v);
