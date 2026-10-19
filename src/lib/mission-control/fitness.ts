@@ -3,7 +3,7 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { readBridgeConfig } from "./bridge-client.mjs";
 import { hasControlAccess } from "./bridge";
-import { completeWhoopOAuth, fetchLogs, fetchPlan, fetchWhoop, fetchWhoopOAuthStatus, postSet, postWhoopClient, startWhoopOAuth } from "./fitness-client.mjs";
+import { completeWhoopOAuth, fetchLogs, fetchPlan, fetchWhoop, fetchWhoopOAuthStatus, postEdit, postSet, postWhoopClient, startWhoopOAuth } from "./fitness-client.mjs";
 
 type Failure = { ok: false; state: string; code: string };
 
@@ -19,6 +19,7 @@ export const readFitnessPlan = () => guarded((cfg) => fetchPlan(cfg));
 export const readWhoop = () => guarded((cfg) => fetchWhoop(cfg));
 export const readFitnessLogs = (q: { date: string | null; session: string | null }) => guarded((cfg) => fetchLogs(cfg, q));
 export const saveFitnessSet = (set: Record<string, unknown>, key: string) => guarded((cfg) => postSet(cfg, set, key));
+export const editFitnessSet = (input: Record<string, unknown>, opKey: string) => guarded((cfg) => postEdit(cfg, input, opKey));
 export const readWhoopOAuthStatus = () => guarded((cfg) => fetchWhoopOAuthStatus(cfg));
 export const saveWhoopClient = (input: { client_id: string; client_secret: string }) => guarded((cfg) => postWhoopClient(cfg, input));
 export const beginWhoopOAuth = (nonceSha256: string) => guarded((cfg) => startWhoopOAuth(cfg, nonceSha256));
