@@ -34,3 +34,25 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Team office (src/components/office). Motion is decorative; disabled by Pause and by prefers-reduced-motion. */
+.office-floor {
+  background-color: #2b2f3a;
+  background-image: linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+  image-rendering: pixelated;
+}
+@keyframes office-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-2px); } }
+@keyframes office-leg { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
+@keyframes office-type { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-1px); } }
+@keyframes office-code { 0% { width: 10%; } 100% { width: 85%; } }
+.office-bob { animation: office-bob 0.5s steps(2) infinite; }
+.office-leg-l { animation: office-leg 0.5s steps(2) infinite; }
+.office-leg-r { animation: office-leg 0.5s steps(2) infinite 0.25s; }
+.office-type-l { animation: office-type 0.3s steps(2) infinite; }
+.office-type-r { animation: office-type 0.3s steps(2) infinite 0.15s; }
+.office-code { animation: office-code 1.6s steps(8) infinite; }
+.office-still .office-bob, .office-still .office-leg-l, .office-still .office-leg-r, .office-still .office-type-l, .office-still .office-type-r, .office-still .office-code { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  .office-bob, .office-leg-l, .office-leg-r, .office-type-l, .office-type-r, .office-code { animation: none; }
+}

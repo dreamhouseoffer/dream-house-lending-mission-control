@@ -80,7 +80,7 @@ export function Section({
   id?: string;
 }) {
   return (
-    <section id={id} className="scroll-mt-20 rounded-xl border border-slate-800 bg-slate-900/60">
+    <section id={id} className="min-w-0 scroll-mt-20 rounded-xl border border-slate-800 bg-slate-900/60">
       <div className="flex items-start justify-between gap-3 border-b border-slate-800 px-4 py-3">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-slate-100">{title}</h2>

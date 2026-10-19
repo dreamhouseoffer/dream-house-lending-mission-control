@@ -44,6 +44,26 @@ export function VerificationChip({ task }: { task: BridgeTask }) {
   return task.verified ? <StatusChip tone="ok">Verified run receipt</StatusChip> : <StatusChip tone="warn">Not verified</StatusChip>;
 }
 
+const NEXT_LINE: Record<string, string> = {
+  queued: "Queued — no worker has started it yet.",
+  queued_after_failure: "Queued again after a failed run.",
+  running_unverified: "Running — a native run is open (liveness not verified).",
+  interrupted: "Interrupted — open it to see what stopped.",
+  waiting_approval: "Waiting for your approval.",
+  review: "Ready for your review — open the result files.",
+  blocked: "Blocked — open it for the reason and your next step.",
+  failed: "Failed — open it for the error; submit a new task to retry.",
+  completed: "Finished with a verified run receipt — open the result.",
+  completed_unverified: "Marked done without a verified run receipt — check the result.",
+  archived: "Archived (not a verified cancel).",
+  unknown: "Unrecognised status — open it to check.",
+};
+
+/** One short owner-facing line: state plus what to do next. Full reasoning stays on the detail page. */
+export function taskNextLine(task: BridgeTask): string {
+  return NEXT_LINE[task.ui.state] ?? NEXT_LINE.unknown;
+}
+
 export function TaskRow({ task }: { task: BridgeTask }) {
   return (
     <li>
@@ -52,10 +72,10 @@ export function TaskRow({ task }: { task: BridgeTask }) {
         className="group flex flex-col gap-2 rounded-lg border border-slate-800 bg-slate-900/40 p-3 hover:border-slate-600 sm:flex-row sm:items-start sm:justify-between"
       >
         <div className="min-w-0">
-          <p className="truncate text-sm font-medium text-slate-100 group-hover:text-white">{task.title || "Untitled task"}</p>
-          <p className="mt-0.5 text-xs leading-5 text-slate-500">
-            <span className="font-mono">{task.id}</span> · owner {task.assignee || "unassigned"} · native {task.ui.native_status ?? task.status} · updated{" "}
-            {lastTouched(task) ? formatTime(lastTouched(task)) : "—"}
+          <p className="line-clamp-2 text-sm font-medium text-slate-100 group-hover:text-white">{task.title || "Untitled task"}</p>
+          <p className="mt-0.5 line-clamp-2 text-xs leading-5 text-slate-300">{taskNextLine(task)}</p>
+          <p className="mt-0.5 truncate text-xs leading-5 text-slate-500">
+            owner {task.assignee || "unassigned"} · <span className="font-mono">{task.id}</span> · updated {lastTouched(task) ? formatTime(lastTouched(task)) : "—"}
           </p>
         </div>
         <span className="flex shrink-0 flex-wrap items-center gap-1.5">

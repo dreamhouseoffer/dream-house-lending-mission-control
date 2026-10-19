@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   Bot,
   BookOpen,
+  Building2,
   CheckSquare,
   FileText,
   Home,
@@ -23,6 +24,7 @@ const ICONS: Record<string, LucideIcon> = {
   home: Home,
   tasks: ListTodo,
   agents: Bot,
+  office: Building2,
   approvals: CheckSquare,
   workflows: Workflow,
   content: FileText,
