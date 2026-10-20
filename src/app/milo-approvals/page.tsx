@@ -10,10 +10,16 @@ import {
   boardIsStale,
   buildMiloBoard,
   decisionOp,
+  defaultLane,
   effectMessage,
   isRetryable,
+  OUTPUT_READ_CONCURRENCY,
+  outputKey,
+  settleOutputRead,
 } from "@/lib/mission-control/milo-board.mjs";
+import { checkOutputReview } from "@/lib/mission-control/output-review-model.mjs";
 import { DECISION_BOUNDARY } from "@/lib/mission-control/milo-approvals-client.mjs";
+import { OutputReviewPanel, hasPendingOutputDecision } from "./output-review-panel";
 
 type Approval = {
   id: string;
@@ -51,13 +57,17 @@ type BoardCard = {
 // Per card: the owner's draft plus the saved value it was seeded from. A draft equal to its base is unedited.
 type NoteDraft = { draft: string; base: string };
 type Built = { lanes: Record<string, BoardCard[]>; counts: Record<string, number>; anomalies: { kind: string; id?: string; detail: string }[]; total: number;
-  needsYouSplit: { owner: number; hermie: number }; unknown: number; approvedPermission: number; state: string };
+  needsYouSplit: { owner: number; hermie: number }; owner: { review: number; needs_you: number; total: number }; hermie: number; unknown: number; approvedPermission: number; state: string; outputTargets: OutputTarget[] };
+type OutputTarget = { id: string; version: string; task: string };
+// One exact output read per review candidate (strictly checked; bound to card id + version + accepted task).
+type OutputEntry = { key: string; gen: number; state: "loading" | "ok" | "error"; code?: string; review?: unknown; pending?: boolean };
 type Action = "approve" | "reject" | "needs_changes" | "notes";
 type PendingOp = { id: string; action: Action; baseVersion: string | null; body: string };
 
 const LANE_TONE: Record<string, string> = {
   ready: "border-sky-400/25 text-sky-200",
   working: "border-emerald-400/30 text-emerald-200",
+  hermie: "border-slate-300/20 text-slate-200",
   review: "border-violet-400/25 text-violet-200",
   needs_you: "border-amber-400/30 text-amber-200",
   done: "border-white/15 text-white/70",
@@ -76,7 +86,8 @@ export default function MiloGrowthBoardPage() {
   const [loading, setLoading] = useState(true);
   const [refreshFailed, setRefreshFailed] = useState(false);
   const [now, setNow] = useState(() => Date.now());
-  const [tab, setTab] = useState("needs_you");
+  // No tab picked yet: focus follows defaultLane (your Needs You / Review first); a picked tab is kept.
+  const [tab, setTab] = useState<string | null>(null);
   const [openId, setOpenId] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, NoteDraft>>({});
   const [pending, setPending] = useState<Record<string, PendingOp & { error?: string }>>({});
@@ -85,6 +96,10 @@ export default function MiloGrowthBoardPage() {
   const [savingId, setSavingId] = useState<string | null>(null);
   const [message, setMessage] = useState<Record<string, string>>({});
   const inflight = useRef(false);
+  const [outputs, setOutputs] = useState<Record<string, OutputEntry>>({});
+  const outGen = useRef(0);
+  const latestOut = useRef<Record<string, number>>({});
+  const targetsRef = useRef<Record<string, string>>({});
 
   const load = useCallback(async () => {
     if (inflight.current) return;
@@ -136,8 +151,38 @@ export default function MiloGrowthBoardPage() {
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [load]);
 
-  const built = useMemo(() => (approvals ? (buildMiloBoard({ approvals, board: board as never, boardError: boardError as never, truncated }) as unknown as Built) : null), [approvals, board, boardError, truncated]);
+  const built = useMemo(() => (approvals ? (buildMiloBoard({ approvals, board: board as never, boardError: boardError as never, truncated, outputs: outputs as never }) as unknown as Built) : null), [approvals, board, boardError, truncated, outputs]);
+  // Targets come from the supervisor facts alone (never from output reads), so reading them cannot loop.
+  targetsRef.current = Object.fromEntries((built?.outputTargets ?? []).map((t) => [t.id, outputKey(t)]));
+  const targetsKey = Object.values(targetsRef.current).join(",");
+
+  // Exact output reads for review candidates: bounded concurrency, newest generation per card wins, a changed binding
+  // fails closed (Hermie "Checking") until its own read lands; the same binding keeps its last exact read while re-read.
+  const readOutputs = useCallback(async (only?: string[]) => {
+    const reads = Object.entries(targetsRef.current).filter(([id]) => !only || only.includes(id)).map(([id, key]) => ({ id, key, gen: ++outGen.current }));
+    if (!reads.length) return;
+    for (const r of reads) latestOut.current[r.id] = r.gen;
+    setOutputs((cur) => { const n = { ...cur }; for (const r of reads) if (n[r.id]?.key !== r.key) n[r.id] = { key: r.key, gen: r.gen, state: "loading" }; return n; });
+    const queue = [...reads];
+    const worker = async () => {
+      for (let r = queue.shift(); r; r = queue.shift()) {
+        const res = await fetch(`/api/control/output-reviews/${r.id}`, { cache: "no-store" }).catch(() => null);
+        const data = res ? await res.json().catch(() => null) : null;
+        const review = res?.ok && data?.ok ? (checkOutputReview(data.review) as { record_id: string } | null) : null;
+        const entry: OutputEntry = review && review.record_id === r.id
+          ? { key: r.key, gen: r.gen, state: "ok", review, pending: hasPendingOutputDecision(r.id) }
+          : { key: r.key, gen: r.gen, state: "error", code: data?.code || (res ? (res.ok ? "schema_mismatch" : `http_${res.status}`) : "unreachable") };
+        setOutputs((cur) => settleOutputRead(cur, r.id, entry, latestOut.current[r.id], targetsRef.current[r.id]) as Record<string, OutputEntry>);
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(OUTPUT_READ_CONCURRENCY, reads.length) }, worker));
+  }, []);
+  // Every board refresh (poll, reload, after a card decision) and every change of candidates re-reads them.
+  useEffect(() => { if (targetsKey) readOutputs(); }, [readOutputs, targetsKey, fetchedAt]);
+  const onOutputChange = useCallback((id: string) => { readOutputs([id]); }, [readOutputs]);
+
   const stale = approvals !== null && boardIsStale(fetchedAt, now);
+  const shownLane = tab ?? (built ? defaultLane(built.counts) : "needs_you");
   const open = built && openId ? Object.values(built.lanes).flat().find((c) => c.id === openId) ?? null : null;
 
   async function send(op: PendingOp, title: string) {
@@ -210,31 +255,37 @@ export default function MiloGrowthBoardPage() {
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-8 text-center text-white/50" data-testid="board-loading">{feedError ? "The board cannot be shown without the card feed." : "Loading the board…"}</div>
       ) : built ? (
         <>
-          <nav className="mb-3 grid grid-cols-5 gap-1 lg:hidden" role="tablist" aria-label="Board lanes">
+          <p className="mb-2 text-sm text-white/75" data-testid="owner-summary">
+            <span className="font-semibold text-amber-200" data-testid="owner-total">For you: {built.owner.total}</span>
+            <span className="text-white/50"> (Your Review {built.owner.review} · Needs You {built.owner.needs_you})</span>
+            <span className="text-white/35"> · </span>
+            <span data-testid="hermie-total">Hermie: {built.hermie}</span>
+            <span className="text-white/50">{built.unknown ? ` (${built.unknown} unknown)` : ""} — not your homework</span>
+          </p>
+          <nav className="mb-3 grid grid-cols-3 gap-1 sm:grid-cols-6 lg:hidden" role="tablist" aria-label="Board lanes">
             {LANES.map((l) => (
-              <button key={l.id} role="tab" aria-selected={tab === l.id} data-testid={`tab-${l.id}`} onClick={() => setTab(l.id)}
-                className={`min-w-0 rounded-lg border px-1 py-2 text-center text-[11px] font-semibold leading-tight ${tab === l.id ? `bg-white/[0.08] ${LANE_TONE[l.id]}` : "border-white/10 text-white/50"}`}>
+              <button key={l.id} role="tab" aria-selected={shownLane === l.id} data-testid={`tab-${l.id}`} onClick={() => setTab(l.id)}
+                className={`min-w-0 rounded-lg border px-1 py-1.5 text-center text-[11px] font-semibold leading-tight ${shownLane === l.id ? `bg-white/[0.08] ${LANE_TONE[l.id]}` : "border-white/10 text-white/50"}`}>
                 <span className="block truncate">{l.label}</span>
                 <span className="block text-base">{built.counts[l.id]}</span>
               </button>
             ))}
           </nav>
-          <div className="grid gap-3 lg:grid-cols-5">
+          {/* Six lanes: each keeps a readable minimum width; on narrower desktops the board (not the page) scrolls sideways. */}
+          <div className="grid min-w-0 gap-3 lg:grid-flow-col lg:auto-cols-[minmax(14rem,1fr)] lg:overflow-x-auto lg:pb-2" data-testid="board-lanes">
             {LANES.map((l) => (
-              <section key={l.id} data-testid={`lane-${l.id}`} aria-label={l.label} className={`min-w-0 flex-col rounded-2xl border border-white/10 bg-white/[0.025] ${tab === l.id ? "flex" : "hidden"} lg:flex`}>
+              <section key={l.id} data-testid={`lane-${l.id}`} aria-label={l.label} className={`min-w-0 flex-col rounded-2xl border border-white/10 bg-white/[0.025] ${shownLane === l.id ? "flex" : "hidden"} lg:flex`}>
                 <div className={`border-b border-white/10 px-3 py-2 ${LANE_TONE[l.id]}`}>
                   <div className="flex items-baseline justify-between gap-2">
                     <h2 className="text-sm font-bold">{l.label}</h2>
                     <span className="text-lg font-semibold" data-testid={`count-${l.id}`}>{built.counts[l.id]}</span>
                   </div>
-                  <p className="text-[11px] text-white/45">
-                    {l.id === "needs_you" ? `${built.needsYouSplit.owner} for you · ${built.needsYouSplit.hermie} Hermie${built.unknown ? ` · ${built.unknown} unknown` : ""}` : l.hint}
-                  </p>
+                  <p className="text-[11px] text-white/45" data-testid={`hint-${l.id}`}>{l.hint}</p>
                 </div>
                 <ul className="flex flex-col gap-2 p-2 lg:max-h-[calc(100vh-15rem)] lg:overflow-y-auto">
                   {built.lanes[l.id].length === 0 ? <li className="px-1 py-3 text-xs text-white/35">Nothing here.</li> : null}
                   {built.lanes[l.id].map((c) => (
-                    <CardTile key={c.id} c={c} onOpen={() => setOpenId(c.id)} pending={Boolean(pending[c.id])} />
+                    <CardTile key={c.id} c={c} onOpen={() => { setOpenId(c.id); onOutputChange(c.id); }} pending={Boolean(pending[c.id])} />
                   ))}
                 </ul>
               </section>
@@ -253,7 +304,8 @@ export default function MiloGrowthBoardPage() {
           pending={pending[open.id] ?? null}
           saving={savingId === open.id}
           message={message[open.id] ?? ""}
-          onClose={() => setOpenId(null)}
+          onClose={() => { setOpenId(null); onOutputChange(open.id); }}
+          onOutputChange={onOutputChange}
         />
       ) : null}
     </div>
@@ -285,17 +337,16 @@ function CardTile({ c, onOpen, pending }: { c: BoardCard; onOpen: () => void; pe
         </div>
         <h3 className="mt-1 line-clamp-2 break-words text-sm font-semibold leading-5">{c.title}</h3>
         <p className="mt-0.5 line-clamp-3 break-words text-xs leading-4 text-white/60" data-testid="card-next">{c.blocker ? <span className="text-amber-200/80">{c.blocker}. </span> : null}{c.next}</p>
-        {c.question ? <p className="mt-1 line-clamp-2 break-words text-xs leading-4 text-amber-100/80" data-testid="card-question">{c.questionFull ? "Request: " : "Request (first line): "}{c.question}</p> : null}
+        {c.question ? <p className="mt-1 line-clamp-2 break-words text-xs leading-4 text-amber-100/80" data-testid="card-question">Request: {c.question}</p> : null}
       </button>
       {c.taskId ? <Link href={`/tasks/${c.taskId}`} className="mt-1 inline-block font-mono text-[11px] text-emerald-300 hover:text-emerald-200" data-testid="task-link">Task {c.taskId} →</Link> : null}
     </li>
   );
 }
 
-function Details({ c, note, onNote, onAction, onRetry, pending, saving, message, onClose }: {
+function Details({ c, note, onNote, onAction, onRetry, pending, saving, message, onClose, onOutputChange }: {
   c: BoardCard; note: string; onNote: (v: string) => void; onAction: (a: Action) => void; onRetry: () => void;
-  pending: (PendingOp & { error?: string }) | null; saving: boolean; message: string; onClose: () => void;
-}) {
+  pending: (PendingOp & { error?: string }) | null; saving: boolean; message: string; onClose: () => void; onOutputChange: (recordId: string) => void }) {
   const a = c.approval;
   const approved = (a.decision || "").toLowerCase() === "approved";
   const locked = saving || Boolean(pending);
@@ -314,7 +365,13 @@ function Details({ c, note, onNote, onAction, onRetry, pending, saving, message,
           <button onClick={onClose} aria-label="Close details" className="shrink-0 rounded-lg border border-white/10 p-1.5 text-white/70 hover:bg-white/[0.08]"><X className="size-4" /></button>
         </div>
         <p className="mt-1 text-white/80"><span className="font-semibold">{c.label}.</span> {c.blocker ? `${c.blocker}. ` : ""}{c.next}</p>
-        {c.question ? <p className="mt-2 whitespace-pre-wrap break-words rounded-lg border border-amber-400/25 bg-amber-500/10 p-2 text-amber-100" data-testid="input-question"><span className="font-semibold">{c.questionFull ? "Request on the card:" : "Request on the card (first line; full text under Change):"}</span> {c.question}</p> : null}
+        <p className="mt-1 text-xs text-white/50" data-testid="lane-owner">
+          {c.lane === "review" ? "Your Review: Hermie accepted this internal draft. Acceptance is not publication — the website has not changed."
+            : c.lane === "needs_you" ? (c.kind === "decide" ? "Needs You: assignment decision on the original request — this is not a finished draft." : "Needs You: answer the exact recorded request in notes.")
+            : c.lane === "hermie" ? "Hermie owns the next step — nothing for you to do here. Any output below is shown for information; its panel offers decisions only when its own checks allow, and says why when not."
+            : `${LANES.find((l) => l.id === c.lane)?.label ?? c.lane}: no action needed from you.`}
+        </p>
+        {c.question ? <p className="mt-2 whitespace-pre-wrap break-words rounded-lg border border-amber-400/25 bg-amber-500/10 p-2 text-amber-100" data-testid="input-question"><span className="font-semibold">Exact request recorded on the card:</span> {c.question}</p> : null}
         {c.notesAck ? <p className="mt-2 rounded-lg border border-emerald-400/25 bg-emerald-500/10 p-2 text-emerald-100" data-testid="notes-ack">
           {c.kind === "notes_saved" ? "Your saved notes are on the card. Hermie has not read this version yet; no re-approval is needed." : "Saved notes present. Hermie reads them before asking you to repeat anything; no re-approval is needed."}
         </p> : null}
@@ -326,7 +383,10 @@ function Details({ c, note, onNote, onAction, onRetry, pending, saving, message,
           Hermie’s earlier “{c.staleDisposition.kind}” decision is stale ({c.staleDisposition.why}). {c.staleDisposition.superseded ? "New linked work takes precedence; the old decision is not applied." : "Not settled until Hermie reconciles it."}
         </p> : null}
 
-        <dl className="mt-3 grid grid-cols-[8rem_1fr] gap-x-2 gap-y-1 text-white/65">
+        {c.linked.length ? <OutputReviewPanel recordId={c.id} onChange={onOutputChange} /> : null}
+
+        <h3 className="mt-4 text-[11px] font-black uppercase tracking-[0.16em] text-white/40">Original request (assignment &amp; evidence)</h3>
+        <dl className="mt-1 grid grid-cols-[8rem_1fr] gap-x-2 gap-y-1 text-white/65">
           <dt className="text-white/40">Decision</dt><dd>{a.savedDecision ?? "not set"}</dd>
           <dt className="text-white/40">Saved status</dt><dd className="break-words">{a.savedStatus ?? "not set"} <span className="text-white/35">(label, not execution evidence)</span></dd>
           <dt className="text-white/40">Approved at</dt><dd>{a.approvedAt || "—"}</dd>
@@ -358,6 +418,7 @@ function Details({ c, note, onNote, onAction, onRetry, pending, saving, message,
         <label className="mt-4 block text-[11px] font-black uppercase tracking-[0.16em] text-white/40" htmlFor={`notes-${a.id}`}>Fonz notes</label>
         <textarea id={`notes-${a.id}`} value={note} disabled={locked} onChange={(e) => onNote(e.target.value)} placeholder="Add notes or answer the request…"
           className="mt-1 min-h-24 w-full rounded-xl border border-white/10 bg-black/30 p-3 text-sm text-white/85 outline-none focus:border-emerald-300/40 disabled:opacity-60" />
+        <button disabled={locked || note === (a.fonzNotes || "")} onClick={() => onAction("notes")} className="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 font-bold text-white/70 disabled:opacity-50" data-testid="save-notes">Save notes only (no decision)</button>
 
         {message ? <p className="mt-2 break-words rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/80" data-testid="action-message" role="status">{message}</p> : null}
         {pending && !saving ? (
@@ -369,15 +430,24 @@ function Details({ c, note, onNote, onAction, onRetry, pending, saving, message,
           </div>
         ) : null}
 
-        <p className="mt-3 text-xs text-white/45">{DECISION_BOUNDARY} There is no execute button here.</p>
-        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
-          <button disabled={locked || approved} onClick={() => onAction("approve")} className="rounded-xl bg-emerald-300 px-3 py-2 font-bold text-black disabled:opacity-50 sm:col-span-2">
-            {saving ? "Saving…" : approved ? "Approval already recorded" : "Record approval (permission only)"}
-          </button>
-          <button disabled={locked} onClick={() => onAction("needs_changes")} className="rounded-xl border border-amber-300/20 bg-amber-500/10 px-3 py-2 font-bold text-amber-100 disabled:opacity-50">Needs changes</button>
-          <button disabled={locked} onClick={() => onAction("reject")} className="rounded-xl border border-rose-300/20 bg-rose-500/10 px-3 py-2 font-bold text-rose-100 disabled:opacity-50">Reject</button>
-          <button disabled={locked || note === (a.fonzNotes || "")} onClick={() => onAction("notes")} className="rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 font-bold text-white/70 disabled:opacity-50 sm:col-span-2">Save notes only</button>
-        </div>
+        <section className="mt-4 rounded-xl border border-white/10 p-3" data-testid="assignment-decision" aria-label="Original assignment decision">
+          <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-white/40">Original assignment decision (separate from any draft review above)</h3>
+          {approved ? (
+            <p className="mt-1 text-white/75" data-testid="assignment-approved" role="status">Assignment approved{a.approvedAt ? ` ${a.approvedAt}` : ""} — permission only. Nothing was started or published by it; no re-approval is needed.</p>
+          ) : (
+            <p className="mt-1 text-xs text-white/45">{DECISION_BOUNDARY} There is no execute button here.</p>
+          )}
+          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="assignment-controls">
+            {!approved ? (
+              <button disabled={locked} onClick={() => onAction("approve")} className="rounded-xl bg-emerald-300 px-3 py-2 font-bold text-black disabled:opacity-50 sm:col-span-2" data-testid="assignment-approve">
+                {saving ? "Saving…" : "Record approval (permission only)"}
+              </button>
+            ) : null}
+            <button disabled={locked} onClick={() => onAction("needs_changes")} className="rounded-xl border border-amber-300/20 bg-amber-500/10 px-3 py-2 font-bold text-amber-100 disabled:opacity-50">{approved ? "Change assignment: needs changes" : "Needs changes"}</button>
+            <button disabled={locked} onClick={() => onAction("reject")} className="rounded-xl border border-rose-300/20 bg-rose-500/10 px-3 py-2 font-bold text-rose-100 disabled:opacity-50">{approved ? "Change assignment: reject" : "Reject"}</button>
+          </div>
+          {approved ? <p className="mt-1 text-[11px] text-white/40">{DECISION_BOUNDARY} There is no execute button here.</p> : null}
+        </section>
       </aside>
     </div>
   );

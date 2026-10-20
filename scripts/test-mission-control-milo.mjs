@@ -332,7 +332,7 @@ test('legacy normalizer exposes raw saved status/decision without its display de
   assert.equal(normalizeLegacyRecord({ id: 'recA', fields: { Status: 'In Progress', Decision: 'Approved' } }).savedStatus, 'In Progress');
 });
 
-test('Milo Growth Board page: five read-only lanes, compact cards, full details and no execute action', async () => {
+test('Milo Growth Board page: six read-only lanes, compact cards, full details and no execute action', async () => {
   const s = await src('src/app/milo-approvals/page.tsx');
   assert.ok(!/grid-cols-7|min-w-\[1180px\]/.test(s), 'no 7-column wall');
   assert.ok(!/queue execution|Approve \+ queue/i.test(s), 'approval is never labelled as queuing execution');
@@ -343,8 +343,14 @@ test('Milo Growth Board page: five read-only lanes, compact cards, full details 
   assert.match(s, /buildMiloBoard\(/);
   assert.match(s, /fetch\("\/api\/control\/milo-board"/);
   assert.match(s, /fetch\("\/api\/milo-approvals"/);
-  assert.match(s, /lg:grid-cols-5/);
+  assert.ok(!/grid-cols-5/.test(s), 'no five-column layout left');
+  // Six lanes: bounded readable width; sideways scroll is on the board container only, never the document.
+  assert.match(s, /data-testid="board-lanes"/);
+  assert.match(s, /lg:grid-flow-col lg:auto-cols-\[minmax\(14rem,1fr\)\] lg:overflow-x-auto/);
+  assert.match(s, /min-h-screen max-w-full overflow-x-clip/, 'document never scrolls sideways');
   assert.match(s, /role="tablist"/);
+  // Phone: six tabs fit in two rows of three at 390px; one row from sm.
+  assert.match(s, /grid grid-cols-3 gap-1 sm:grid-cols-6 lg:hidden" role="tablist"/);
   assert.match(s, /line-clamp-2/);
   assert.match(s, /savedStatus/);
   assert.match(s, /href="\/approvals"/);
@@ -354,6 +360,39 @@ test('Milo Growth Board page: five read-only lanes, compact cards, full details 
   assert.ok(!/onAction\("execute"\)|>\s*Execute\s*</.test(s), 'no execute button');
   assert.ok(!/title\.includes|\.title\s*===|match\(.*title/i.test(s), 'never links by title');
   assert.match(DECISION_BOUNDARY, /Approval records permission; execution is confirmed by a linked task/);
+});
+
+test('Milo board page: explicit owner vs Hermie ownership, default focus, review drawer order and plain approved status', async () => {
+  const s = await src('src/app/milo-approvals/page.tsx');
+  // Owner counts separate from Hermie; no mixed "your input or recovery" copy.
+  for (const id of ['owner-summary', 'owner-total', 'hermie-total']) assert.ok(s.includes(`data-testid="${id}"`), id);
+  assert.match(s, /For you: \{built\.owner\.total\}/);
+  assert.match(s, /Hermie: \{built\.hermie\}/);
+  assert.ok(!/needsYouSplit\.(owner|hermie)\} /.test(s) && !/for you · .*Hermie/.test(s), 'no mixed Needs You split copy');
+  assert.ok(!/input,? or Hermie recovery|input or recovery/i.test(s));
+  // Default focus follows defaultLane until a tab is picked; tabs/lanes use the same shown lane.
+  assert.match(s, /useState<string \| null>\(null\)/);
+  assert.match(s, /tab \?\? \(built \? defaultLane\(built\.counts\)/);
+  assert.match(s, /aria-selected=\{shownLane === l\.id\}/);
+  assert.match(s, /shownLane === l\.id \? "flex" : "hidden"\} lg:flex/);
+  // Drawer: actual output panel renders before the original request.
+  const panelAt = s.indexOf('<OutputReviewPanel recordId={c.id} onChange={onOutputChange} />');
+  assert.ok(panelAt > 0 && panelAt < s.indexOf('Original request (assignment &amp; evidence)'), 'draft/comparisons before original request');
+  assert.match(s, /Acceptance is not publication/);
+  assert.match(s, /data-testid="lane-owner"/);
+  // Approved assignment is a plain status, not a disabled primary CTA; the approve CTA exists only when unapproved.
+  assert.match(s, /data-testid="assignment-approved" role="status"/);
+  assert.ok(!/Approval already recorded/.test(s), 'no disabled "already recorded" CTA');
+  assert.ok(!/disabled=\{locked \|\| approved\}/.test(s));
+  assert.match(s, /\{!approved \? \(\s*<button disabled=\{locked\} onClick=\{\(\) => onAction\("approve"\)\}/);
+  // Notes-only stays distinct from the assignment decision section.
+  const notesAt = s.indexOf('data-testid="save-notes"');
+  const sectionAt = s.indexOf('data-testid="assignment-decision"');
+  assert.ok(notesAt > 0 && sectionAt > 0 && notesAt < sectionAt, 'save-notes sits with the notes field, outside the decision section');
+  assert.ok(!s.slice(sectionAt, s.indexOf('</section>', sectionAt)).includes('onAction("notes")'));
+  // Requests are shown only as exact recorded requests (no "first line" presented as the question).
+  assert.ok(!/Request \(first line\)|first line; full text/.test(s));
+  assert.match(s, /Exact request recorded on the card:/);
 });
 
 test('task detail pre-wrapped text breaks long tokens (mobile run errors)', async () => {
@@ -434,7 +473,9 @@ test('the client page graph stays free of node builtins; the signal hash lives i
     const s = await src(rel);
     assert.ok(!/from\s+["']node:|require\(["']node:/.test(s), `${rel} imports a node builtin`);
     for (const [, spec] of s.matchAll(/from\s+["'](@\/lib\/[^"']+|\.\/[^"']+)["']/g)) {
-      await walk(spec.startsWith('@/') ? `src/${spec.slice(2)}` : join(rel, '..', spec));
+      const p = spec.startsWith('@/') ? `src/${spec.slice(2)}` : join(rel, '..', spec);
+      // Extensionless local component imports (e.g. ./output-review-panel) are walked too, never skipped.
+      await walk(/\.[cm]?[jt]sx?$/.test(p) ? p : `${p}.tsx`);
     }
   };
   await walk('src/app/milo-approvals/page.tsx');

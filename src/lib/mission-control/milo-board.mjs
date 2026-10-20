@@ -4,18 +4,27 @@
 // per exact record id). The feed version is compared with the supervisor's snapshot version HERE, so a card edited after
 // the supervisor's read is never shown as settled. Linkage is by exact record id only; titles are never matched.
 //
-// Approval is permission, not execution. Working needs a linked native run with verified liveness. Native "done" alone is
-// Review (parent/Hermie review), never Done. Accepted drafts are Review for the owner (website not changed). Unknown or
-// unreadable state goes to Needs You with an explicit Hermie recovery message — never an empty lane or a false Ready.
+// Approval is permission, not execution. Working needs a linked native run with verified liveness. Ownership is explicit:
+// Your Review holds only an exact current, parent-reviewed, undecided draft the output review says is waiting for the owner
+// (website not changed); Needs You holds only an
+// actual missing owner decision or a precise recorded question. Everything Hermie owns — native done/review, reviewer runs,
+// blocks, stale/unknown/unverified/duplicate/archived state, rework and saved notes — is the Hermie lane with its next
+// action. Unknown or unreadable state is Hermie recovery — never an empty lane, a false Ready or owner homework.
 
+// Owner lanes first (always in view on desktop and phone), then the pipeline in flow order.
 export const LANES = [
+  { id: "needs_you", label: "Needs You", hint: "A decision or answer only you can give" },
+  { id: "review", label: "Your Review", hint: "Draft accepted by Hermie for you — not published" },
   { id: "ready", label: "Ready", hint: "Approved or queued — not started" },
   { id: "working", label: "Working", hint: "Linked worker verified live" },
-  { id: "review", label: "Review", hint: "Output waiting for review — not published" },
-  { id: "needs_you", label: "Needs You", hint: "Your input, or Hermie recovery" },
+  { id: "hermie", label: "Hermie", hint: "Checks, recovery and preparation — not your homework" },
   { id: "done", label: "Done", hint: "Verified done or closed" },
 ];
 export const LANE_IDS = LANES.map((l) => l.id);
+/** Lanes whose every card is the owner's to act on. */
+export const OWNER_LANES = ["needs_you", "review"];
+// Default focus (phone tabs): the owner's own work first, then anything else that is non-empty — never a silent empty tab.
+const FOCUS_ORDER = ["needs_you", "review", "working", "hermie", "ready", "done"];
 export const POLL_MS = 60_000;
 export const BOARD_STALE_MS = 5 * 60_000;
 export const APPROVAL_BOUNDARY = "Approval records permission only. It does not start work, change the website or publish anything.";
@@ -47,7 +56,8 @@ function primaryTask(rec) {
 /**
  * The request shown on the card comes only from existing card facts; nothing is invented. The feed has no separate
  * next-action/input field, so this is the FIRST non-empty line of Proposed Change, bounded. `full` is false when the card
- * holds more (a long spec), so the UI says "first line" instead of presenting it as the precise missing input.
+ * holds more (a long spec): only a `full` request is a precise recorded question the owner can be asked; anything else
+ * is Hermie's to clarify, with the whole original request kept in Details.
  */
 export function inputQuestion(approval) {
   const lines = String(approval.proposedChange || "").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
@@ -67,29 +77,51 @@ function blockerOf(rec, taskId) {
 
 function heldByDecision(approval) {
   const d = decisionKey(approval.decision);
-  if (!d || d === "pending") return card(approval, "needs_you", "decide", { label: "Your decision", recovery: "owner",
-    next: "Decide: approve (permission only), needs changes, or reject." });
-  if (d === "needs changes") return card(approval, "needs_you", "revise", { label: "Milo revising", recovery: "hermie",
+  if (!d || d === "pending") return card(approval, "needs_you", "decide", { label: "Assignment decision", recovery: "owner",
+    next: "Decide the original request: approve (permission only), needs changes, or reject. Not a finished draft." });
+  if (d === "needs changes") return card(approval, "hermie", "revise", { label: "Milo revising", recovery: "hermie",
     next: "Milo/Hermie revise the card from your notes; it comes back for your decision." });
   if (d === "rejected") return card(approval, "done", "closed_rejected", { label: "Rejected — closed", next: "Closed. Nothing was executed." });
-  return card(approval, "needs_you", "decide", { label: `Decision "${approval.decision}"`, recovery: "owner",
-    next: "Unrecognised decision label — record approve, needs changes or reject." });
+  return card(approval, "hermie", "decision_unrecognised", { label: "Decision label unrecognised", recovery: "hermie",
+    blocker: `recorded decision "${approval.decision}" is not approve, needs changes or reject`,
+    next: "Hermie checks the recorded decision before anything runs. Not approved, not started." });
 }
 
-const unknownCard = (approval, why, extra = {}) => card(approval, "needs_you", "unknown", { label: "Unknown state", recovery: "hermie", unknown: true,
+/**
+ * A finished draft is the owner's only when Hermie's current draft_done acceptance names the exact linked native task and
+ * that task is done with both existing output markers (has_result AND has_attachments; both are plain booleans in the
+ * feed, so neither is treated as optional). Returns the exact reason it is not, or null.
+ */
+function draftAcceptanceGap(rec, current) {
+  if (!current) return "no current Hermie draft acceptance for this card version";
+  const tid = rec.disposition.task;
+  if (!tid) return "Hermie's draft acceptance names no linked task";
+  const t = (rec.linked ?? []).find((x) => x.task_id === tid);
+  if (!t) return `accepted task ${tid} is not linked to this card`;
+  if (t.status !== "done") return `accepted task ${tid} is ${t.status}, not done`;
+  if (t.has_attachments !== true) return `accepted task ${tid} has no attached output`;
+  if (t.has_result !== true) return `accepted task ${tid} has no recorded result`;
+  return null;
+}
+
+const unknownCard = (approval, why, extra = {}) => card(approval, "hermie", "unknown", { label: "Unknown state", recovery: "hermie", unknown: true,
   blocker: why, next: `Hermie: restore the supervisor read (${why}). Not ready, not running.`, ...extra });
 
 /** Lane for one approved card with a supervisor record at the SAME version. Mirrors approved_queue_monitor classes. */
-function fromClass(approval, rec) {
+function fromClass(approval, rec, ctx = {}) {
   const base = { taskId: primaryTask(rec), linked: rec.linked ?? [], supervisor: rec };
   const cls = rec.class ?? "unknown";
   const outcome = (rec.linked ?? []).find((t) => t.task_id === rec.attention_task)?.last_outcome ?? (rec.linked ?? []).at(-1)?.last_outcome ?? "none";
   if (cls === "consumed") return card(approval, "done", "verified_done", { ...base, label: "Verified done", next: "Accepted by Hermie after review. See the linked task for the result." });
   if (cls.startsWith("held:")) return { ...heldByDecision(approval), ...base };
   if (cls.startsWith("disposition_stale:")) {
-    return card(approval, "needs_you", "reconcile", { ...base, label: "Needs reconciliation", recovery: "hermie", stale: true,
+    return card(approval, "hermie", "reconcile", { ...base, label: "Needs reconciliation", recovery: "hermie", stale: true,
       blocker: `card changed after Hermie's "${cls.split(":")[1]}" decision`, next: "Hermie reconciles the changed card before anything continues. Not settled." });
   }
+  // Owner-facing classes are only the owner's while Hermie's own disposition of that kind is current for this exact card
+  // version and linked-task digest (the monitor's authority). Anything less is Hermie's to verify, never owner homework.
+  const d = rec.disposition;
+  const currentDisposition = (kind) => Boolean(d && d.kind === kind && d.version === approval.version && d.version_current === true && d.observed_matches === true);
   switch (cls) {
     case "linked_active": {
       const t = (rec.linked ?? []).find((x) => x.status === "running" && x.liveness === "live");
@@ -98,7 +130,7 @@ function fromClass(approval, rec) {
       // = independent reviewer, whatever the assignee). An unknown phase is shown as running work, never as the author.
       const phase = t.phase?.phase ?? "unknown";
       if (phase === "review") {
-        return card(approval, "review", "hermie_reviewing", { ...base, taskId: t.task_id, runPhase: t.phase, label: "Hermie reviewing", recovery: "hermie",
+        return card(approval, "hermie", "hermie_reviewing", { ...base, taskId: t.task_id, runPhase: t.phase, label: "Hermie reviewing", recovery: "hermie",
           next: "Independent reviewer is running (verified live). Milo is not working on it; nothing is published." });
       }
       return phase === "implementation"
@@ -109,13 +141,13 @@ function fromClass(approval, rec) {
     case "worker_not_verified": {
       const t = (rec.linked ?? []).find((x) => x.status === "running");
       const reviewer = t?.phase?.phase === "review";
-      return card(approval, "needs_you", "worker_unverified", { ...base, taskId: t?.task_id ?? base.taskId, runPhase: t?.phase ?? null,
+      return card(approval, "hermie", "worker_unverified", { ...base, taskId: t?.task_id ?? base.taskId, runPhase: t?.phase ?? null,
         label: reviewer ? "Reviewer not verified" : "Worker not verified", recovery: "hermie",
         blocker: `task says running; ${reviewer ? "reviewer" : "worker"} liveness ${t?.liveness ?? "unknown"}`,
         next: reviewer ? "Hermie checks the reviewer run. Not counted as review in progress." : "Hermie checks the worker. Not counted as working." });
     }
     case "duplicate_active":
-      return card(approval, "needs_you", "duplicate", { ...base, label: "Duplicate tasks", recovery: "hermie", blocker: "more than one open linked task", next: "Hermie resolves the duplicate tasks." });
+      return card(approval, "hermie", "duplicate", { ...base, label: "Duplicate tasks", recovery: "hermie", blocker: "more than one open linked task", next: "Hermie resolves the duplicate tasks." });
     case "linked_queued":
       return card(approval, "ready", "queued", { ...base, label: "Queued", next: "Linked task queued; no worker running yet." });
     case "linked_queued_after_failure": {
@@ -126,8 +158,8 @@ function fromClass(approval, rec) {
     case "linked_blocked_needs_parent_review": {
       const why = blockerOf(rec, base.taskId);
       // Hermie always reviews a block first (monitor: parent_review). A native needs_input block says the worker wants an
-      // owner fact; Hermie checks it against the card/notes and asks you only if it is really missing.
-      return card(approval, "needs_you", "blocked", { ...base, label: why?.owner === "owner" ? "Blocked — may need your input" : "Blocked — Hermie recovery",
+      // owner fact; it stays Hermie's until Hermie checks it against the card/notes and records the exact question.
+      return card(approval, "hermie", "blocked", { ...base, label: why?.owner === "owner" ? "Blocked — may need your input" : "Blocked — Hermie recovery",
         recovery: "hermie", blockReason: why,
         blocker: why ? `Blocked: ${why.reason}` : `linked task blocked (last run: ${outcome}); no reason recorded on the task`,
         next: why?.owner === "owner"
@@ -135,33 +167,47 @@ function fromClass(approval, rec) {
           : "Hermie recovers the block (retry, fix or re-scope). No input from you is needed yet." });
     }
     case "linked_review_needs_parent_review":
-      return card(approval, "review", "hermie_review", { ...base, label: "Hermie review", recovery: "hermie", next: "Output in review by Hermie. Not published." });
+      return card(approval, "hermie", "hermie_review", { ...base, label: "Hermie review", recovery: "hermie", next: "Output in review by Hermie. Not published." });
     case "linked_done_needs_parent_review":
-      return card(approval, "review", "hermie_review", { ...base, label: "Worker finished — review", recovery: "hermie", next: "Hermie reviews the output. Not Done or published until accepted." });
+      return card(approval, "hermie", "hermie_review", { ...base, label: "Worker finished — Hermie review", recovery: "hermie", next: "Hermie reviews the output. Not Done or published until accepted." });
     case "linked_archived_needs_parent_review":
-      return card(approval, "needs_you", "archived", { ...base, label: "Task archived", recovery: "hermie", blocker: "linked task archived without completion", next: "Hermie decides the next step." });
-    case "draft_done_accepted":
-      return card(approval, "review", "owner_review", { ...base, label: "Draft ready for you", recovery: "owner",
-        next: "Internal draft accepted by Hermie — your review. The website has not changed." });
+      return card(approval, "hermie", "archived", { ...base, label: "Task archived", recovery: "hermie", blocker: "linked task archived without completion", next: "Hermie decides the next step." });
+    case "draft_done_accepted": {
+      const why = draftAcceptanceGap(rec, currentDisposition("draft_done"));
+      if (why) {
+        return card(approval, "hermie", "acceptance_unverified", { ...base, label: "Acceptance not verified", recovery: "hermie",
+          blocker: why, next: "Hermie re-checks the draft acceptance before it reaches you. Not published." });
+      }
+      return ownerDraftOrHermie(approval, rec, base, ctx.outputs);
+    }
     case "needs_input":
     case "request_only": {
       const q = inputQuestion(approval);
-      const qf = q ? { question: q.text, questionFull: q.full } : {};
+      // Only a complete, bounded, single-line recorded request is a precise question; a first line of a spec is not.
+      const qf = q?.full ? { question: q.text, questionFull: true } : {};
+      if (!currentDisposition(cls)) {
+        return card(approval, "hermie", cls, { ...base, ...qf, label: "Request not verified", recovery: "hermie",
+          blocker: `no current Hermie "${cls}" decision for this card version`, next: "Hermie confirms what is needed before asking you. Not settled." });
+      }
       if (hasNotes(approval)) {
         // Saved notes exist: Hermie must read them before asking again. The request stays visible.
-        return card(approval, "needs_you", cls, { ...base, ...qf, notesAck: true, label: "Your notes saved — Hermie reviewing", recovery: "hermie",
+        return card(approval, "hermie", cls, { ...base, ...qf, notesAck: true, label: "Your notes saved — Hermie reviewing", recovery: "hermie",
           next: "Saved notes present. Hermie reads them before asking you to repeat anything. No re-approval needed." });
       }
+      if (q?.full) {
+        return card(approval, "needs_you", cls, { ...base, ...qf, label: cls === "request_only" ? "Request for you" : "Input needed", recovery: "owner",
+          next: "Answer in notes. Approval is already recorded — no re-approval needed." });
+      }
       return q
-        ? card(approval, "needs_you", cls, { ...base, ...qf, label: cls === "request_only" ? "Request for you" : "Input needed", recovery: "owner",
-            next: `Answer in notes${q.full ? "" : " (full request in details)"}. Approval is already recorded — no re-approval needed.` })
-        : card(approval, "needs_you", cls, { ...base, label: "Input unclear", recovery: "hermie", blocker: "the card does not state the needed input",
+        ? card(approval, "hermie", cls, { ...base, label: "Hermie clarifying the request", recovery: "hermie", blocker: "the recorded request is not one exact question",
+            next: "Hermie turns the recorded request into one exact question before asking you. Full original request in Details." })
+        : card(approval, "hermie", cls, { ...base, label: "Input unclear", recovery: "hermie", blocker: "the card does not state the needed input",
             next: "Hermie adds the exact question to the card." });
     }
     case "parked":
       return card(approval, "done", "parked", { ...base, label: "Parked", next: "Reviewed; no work now." });
     case "excluded:done_label_without_linked_task":
-      return card(approval, "needs_you", "label_only", { ...base, label: "Done label unproven", recovery: "hermie", blocker: "status says done but no linked task proves it",
+      return card(approval, "hermie", "label_only", { ...base, label: "Done label unproven", recovery: "hermie", blocker: "status says done but no linked task proves it",
         next: "Hermie verifies or corrects the label. Not counted as Done." });
     case "opportunity":
       return card(approval, "ready", "approved_not_started", { ...base, label: "Approved — not started", next: "Permission recorded; no linked task yet." });
@@ -170,7 +216,83 @@ function fromClass(approval, rec) {
   }
 }
 
-/** One card -> lane. `ctx` = { board, boardError, records: Map(id -> record), signals: Map(id -> entry) }. */
+// ---- Exact output-review consumption --------------------------------------------------------------------------------
+// Hermie's current draft_done acceptance only makes a card a review CANDIDATE (an outputTarget). Whether a finished draft
+// is actually waiting for the owner is the output-review authority (GET /api/control/output-reviews/:recordId, strictly
+// re-checked by checkOutputReview), read per candidate and bound to the exact card id, card version and accepted task.
+// Missing, loading, failed, mismatched, decided or unconfirmed reads are all Hermie's — never owner homework.
+
+export const OUTPUT_READ_CONCURRENCY = 4;
+/** Binding of one output read: an answer for another card version or accepted task never counts for this one. */
+export const outputKey = (t) => `${t.id}|${t.version}|${t.task}`;
+
+/**
+ * Pure merge of one output read (page). Only the newest read for the card's CURRENT binding may land: an older
+ * generation or a read for a since-changed version/task returns `outputs` unchanged.
+ */
+export function settleOutputRead(outputs, id, entry, latestGen, currentKey) {
+  if (!entry || entry.gen !== latestGen || entry.key !== currentKey) return outputs;
+  return { ...outputs, [id]: entry };
+}
+
+function ownerDraftOrHermie(approval, rec, base, outputs) {
+  const tid = rec.disposition.task;
+  const target = { id: approval.id, version: approval.version, task: tid };
+  const at = { ...base, taskId: tid, outputTarget: target };
+  const hermie = (kind, label, blocker, next, extra = {}) => card(approval, "hermie", kind, { ...at, label, recovery: "hermie", blocker, next, ...extra });
+  const e = (outputs instanceof Map ? outputs.get(approval.id) : outputs?.[approval.id]) ?? null;
+  if (!e || e.key !== outputKey(target) || e.state === "loading") {
+    return hermie("output_checking", "Checking the draft", e && e.key !== outputKey(target) ? "the last draft read was for another card version or task" : "current draft and decision not read yet",
+      "Hermie reads the exact current draft and any decision on it before it reaches you. Not yours yet.");
+  }
+  const r = e.review;
+  if (e.state !== "ok" || !r || r.record_id !== approval.id) {
+    return hermie("output_unreadable", "Draft review unreadable", `draft review unreadable: ${e.code ?? "unknown"}`, "Hermie restores the draft read. Not counted as waiting for you.");
+  }
+  if (e.pending) {
+    return hermie("output_unconfirmed", "Your decision not confirmed", "a draft decision was sent but its outcome is not confirmed",
+      "Open the card: Retry sends the same request. Not counted as waiting for you until it is confirmed.");
+  }
+  if (r.state === "blocked") return hermie("output_blocked", "Draft blocked", `draft review blocked: ${r.blocked?.code ?? "unknown"}`, "Hermie fixes the registered output before it reaches you.");
+  const cur = r.current;
+  if (r.state !== "ok" || !cur) return hermie("output_missing", "No registered draft", "no registered output for the accepted task", "Hermie registers the finished draft before it reaches you.");
+  const ver = { outputVersion: cur.version_label };
+  // The current version must be this card's accepted work: the accepted task itself, or a linked, done revision of it,
+  // parent-reviewed against this card (and this card version, when the review records one).
+  const own = cur.task_id === tid || (cur.is_revision && (rec.linked ?? []).some((t) => t.task_id === cur.task_id && t.status === "done"));
+  const src = cur.review;
+  if (!own || (src?.source_id != null && src.source_id !== approval.id) || (src?.source_version != null && src.source_version !== approval.version)) {
+    return hermie("output_mismatch", "Draft does not match card", `current draft ${cur.version_label} is not bound to this card version and its accepted task`,
+      "Hermie reconciles the draft with the card. Not yours yet.", ver);
+  }
+  const d = cur.decision;
+  if (d && d.version_digest !== cur.version_digest) {
+    return hermie("output_mismatch", "Draft does not match card", `recorded decision is not for current draft ${cur.version_label}`, "Hermie reconciles the decision record. Not yours yet.", ver);
+  }
+  if (d?.decision === "approve") {
+    return hermie("output_approved", "Wording accepted — release not authorized", null, `You approved the wording of ${cur.version_label}. Release is not authorized; Hermie handles the next step. Nothing published.`, ver);
+  }
+  if (d?.decision === "reject") return hermie("output_rejected", "Draft rejected — Hermie next step", null, `You rejected ${cur.version_label}. Hermie decides the next step; nothing was published.`, ver);
+  // A requested revision is shown with its real recorded state label; it is never inferred to be running.
+  if (d?.decision === "revise") {
+    return hermie("output_revision", r.revision?.label || "Revision requested — handoff not confirmed", null, `You asked for a revision of ${cur.version_label}. Hermie follows it up; nothing was published.`, ver);
+  }
+  if (r.revision && r.revision.state !== "produced") {
+    return hermie("output_revision", r.revision.label, null, "A requested revision is not finished. Hermie follows it up; nothing was published.", ver);
+  }
+  if (!cur.reviewable || !cur.primary || r.controls.decide_unavailable || !r.controls.approve || !r.controls.reject) {
+    return hermie("output_not_decidable", "Draft not decidable", `draft ${cur.version_label} not decidable: ${cur.not_reviewable ?? r.controls.decide_unavailable ?? "decision controls unavailable"}`,
+      "Hermie completes the parent review of every file before it reaches you.", ver);
+  }
+  if (!r.next_step.owner_needed) return hermie("output_not_owner", "Hermie next step", null, r.next_step.text, ver);
+  return card(approval, "review", "owner_review", { ...at, taskId: cur.task_id, ...ver, label: "Draft ready for you", recovery: "owner",
+    next: "Internal draft accepted by Hermie — your review. Acceptance is not publication; the website has not changed." });
+}
+
+/**
+ * One card -> lane. `ctx` = { board, boardError, records: Map(id -> record), signals: Map(id -> entry),
+ * outputs: Map|object(id -> { key, gen, state: "loading"|"ok"|"error", review (checkOutputReview), code, pending }) }.
+ */
 export function classifyCard(approval, ctx) {
   const rec = ctx.records?.get(approval.id) ?? null;
   const approved = decisionKey(approval.decision) === "approved";
@@ -183,7 +305,7 @@ export function classifyCard(approval, ctx) {
   if (ctx.board.dispositions?.state !== "ok") return unknownCard(approval, `dispositions invalid: ${ctx.board.dispositions?.code ?? "unknown"}`);
   if (ctx.board.snapshot?.state !== "ok") return unknownCard(approval, `supervisor snapshot ${ctx.board.snapshot?.state ?? "unknown"}: ${ctx.board.snapshot?.code ?? "none"}`);
   if (!rec) {
-    return card(approval, "needs_you", "not_read", { label: "Not read by Hermie", recovery: "hermie", stale: true, unknown: true,
+    return card(approval, "hermie", "not_read", { label: "Not read by Hermie", recovery: "hermie", stale: true, unknown: true,
       blocker: "card is not in the supervisor snapshot", next: "Hermie runs a fresh read of this card. Not ready yet." });
   }
   if (typeof approval.version !== "string" || !VERSION_RE.test(approval.version)) {
@@ -194,13 +316,13 @@ export function classifyCard(approval, ctx) {
     const base = { supervisor: rec, linked: rec.linked ?? [], taskId: primaryTask(rec), stale: true, recovery: "hermie" };
     const fresh = sig ? ` Fresh read ${sig.state === "needs_fresh_read" ? "requested" : sig.state.replace(/_/g, " ")}.` : "";
     if (["request_only", "needs_input"].includes(rec.disposition?.kind) && (approval.fonzNotes || "").trim()) {
-      return card(approval, "needs_you", "notes_saved", { ...base, notesAck: true, label: "Your notes saved", blocker: "Hermie has not read this version yet",
+      return card(approval, "hermie", "notes_saved", { ...base, notesAck: true, label: "Your notes saved", blocker: "Hermie has not read this version yet",
         next: `Your notes are saved. Hermie re-reads the card next — no re-approval needed.${fresh}` });
     }
-    return card(approval, "needs_you", "source_drift", { ...base, label: "Changed since read", blocker: "card changed after the supervisor's last read",
+    return card(approval, "hermie", "source_drift", { ...base, label: "Changed since read", blocker: "card changed after the supervisor's last read",
       next: `Hermie re-reads the card before acting. Not settled.${fresh}` });
   }
-  return withDispositionFreshness(approval, rec);
+  return withDispositionFreshness(approval, rec, ctx);
 }
 
 /**
@@ -209,18 +331,18 @@ export function classifyCard(approval, ctx) {
  * a new owner request or Done. Precedence is kept exactly: consumed/held, then actual verified live/queued/duplicate/
  * unverified work supersede the stale disposition (flagged); everything else is explicit stale reconciliation.
  */
-function withDispositionFreshness(approval, rec) {
+function withDispositionFreshness(approval, rec, ctx) {
   const d = rec.disposition;
   const cls = rec.class ?? "unknown";
-  if (!d || d.kind === "dispatched" || cls === "consumed" || cls.startsWith("held:") || cls.startsWith("disposition_stale:")) return fromClass(approval, rec);
+  if (!d || d.kind === "dispatched" || cls === "consumed" || cls.startsWith("held:") || cls.startsWith("disposition_stale:")) return fromClass(approval, rec, ctx);
   if (d.observed_matches === null) return unknownCard(approval, `"${d.kind}" disposition without a linked-state digest`, { supervisor: rec, linked: rec.linked ?? [], taskId: primaryTask(rec) });
-  if (d.version_current && d.observed_matches) return fromClass(approval, rec);
+  if (d.version_current && d.observed_matches) return fromClass(approval, rec, ctx);
   const why = d.version_current ? "linked task state changed" : "card version changed";
   if (LIVE_PRECEDENCE.includes(cls)) {
-    const c = fromClass(approval, rec);
+    const c = fromClass(approval, rec, ctx);
     return { ...c, staleDisposition: { kind: d.kind, why, superseded: true } };
   }
-  return card(approval, "needs_you", "reconcile", { supervisor: rec, linked: rec.linked ?? [], taskId: primaryTask(rec), label: "Needs reconciliation",
+  return card(approval, "hermie", "reconcile", { supervisor: rec, linked: rec.linked ?? [], taskId: primaryTask(rec), label: "Needs reconciliation",
     recovery: "hermie", stale: true, staleDisposition: { kind: d.kind, why, superseded: false },
     blocker: `${why} after Hermie's "${d.kind}" decision`,
     next: "Hermie re-reviews before anything continues. Not settled — not new work, not Done." });
@@ -230,7 +352,7 @@ function withDispositionFreshness(approval, rec) {
  * Whole board. Every unique feed card appears in exactly one lane; duplicates and cross-source mismatches are explicit
  * anomalies. Returns { lanes, counts, anomalies, approvedPermission, total, state }.
  */
-export function buildMiloBoard({ approvals, board = null, boardError = null, truncated = false }) {
+export function buildMiloBoard({ approvals, board = null, boardError = null, truncated = false, outputs = null }) {
   const anomalies = [];
   const seen = new Map();
   for (const a of Array.isArray(approvals) ? approvals : []) {
@@ -246,11 +368,13 @@ export function buildMiloBoard({ approvals, board = null, boardError = null, tru
     for (const o of board.orphan_links ?? []) anomalies.push({ kind: "orphan_link", id: o.record_id, detail: `Task(s) ${o.task_ids.join(", ")} link to ${o.record_id}, which is not in the supervisor snapshot.` });
     if (board.records_truncated) anomalies.push({ kind: "board_truncated", detail: "The supervisor board hit its record limit." });
   }
-  const ctx = { board, boardError, records, signals };
+  const ctx = { board, boardError, records, signals, outputs };
   const lanes = Object.fromEntries(LANE_IDS.map((id) => [id, []]));
   for (const a of seen.values()) {
     const c = classifyCard(a, ctx);
-    lanes[LANE_IDS.includes(c.lane) ? c.lane : "needs_you"].push(c);
+    // Owner lanes hold only owner-actionable cards; anything else (or an unknown lane) is Hermie's.
+    const lane = LANE_IDS.includes(c.lane) && (!OWNER_LANES.includes(c.lane) || c.recovery === "owner") ? c.lane : "hermie";
+    lanes[lane].push(lane === c.lane ? c : { ...c, lane });
     if (decisionKey(a.decision) !== "approved" && (c.linked ?? []).some((t) => t.status === "running")) {
       anomalies.push({ kind: "running_without_approval", id: a.id, detail: `A linked task is running for ${a.id}, which is not approved.` });
     }
@@ -259,11 +383,22 @@ export function buildMiloBoard({ approvals, board = null, boardError = null, tru
   const needsOwner = lanes.needs_you.filter((c) => c.recovery === "owner").length;
   return {
     lanes, counts, anomalies, total: seen.size,
+    // Candidates whose exact output review must be read (no read for cards without a parent-accepted linked draft).
+    outputTargets: Object.values(lanes).flat().filter((c) => c.outputTarget).map((c) => c.outputTarget),
+    // Kept for compatibility; with explicit ownership every Needs You card is the owner's (hermie is always 0 here).
     needsYouSplit: { owner: needsOwner, hermie: lanes.needs_you.length - needsOwner },
+    // What is actually yours vs Hermie's — never mixed into one number.
+    owner: { review: counts.review, needs_you: counts.needs_you, total: counts.review + counts.needs_you },
+    hermie: counts.hermie,
     unknown: Object.values(lanes).flat().filter((c) => c.unknown).length,
     approvedPermission: [...seen.values()].filter((a) => decisionKey(a.decision) === "approved").length,
     state: board ? "ok" : "supervisor_unreadable",
   };
+}
+
+/** Lane to focus first (phone tabs): the owner's Needs You / Your Review, else the first non-empty lane. */
+export function defaultLane(counts) {
+  return FOCUS_ORDER.find((id) => (counts?.[id] ?? 0) > 0) ?? "needs_you";
 }
 
 /** Board fetched long ago (failed refreshes keep the last data visible) is stale. */
