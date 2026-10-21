@@ -3,7 +3,9 @@
 import { unstable_noStore as noStore } from "next/cache";
 import { readBridgeConfig } from "./bridge-client.mjs";
 import { hasControlAccess } from "./bridge";
-import { fetchOutputReview, postHandoffRetry, postOutputDecision } from "./output-review-client.mjs";
+import { fetchOutputReview, postHandoffRetry } from "./output-review-client.mjs";
+import { guardOutputDecision } from "./output-decision-guard.mjs";
+import { miloConfigFromEnv } from "./milo-approvals";
 
 type Failure = { ok: false; state: string; code: string };
 
@@ -16,5 +18,9 @@ async function guarded(fn: (cfg: ReturnType<typeof readBridgeConfig>) => Promise
 }
 
 export const readOutputReview = (recordId: string) => guarded((cfg) => fetchOutputReview(cfg, recordId));
-export const decideOutput = (recordId: string, body: unknown, key: string) => guarded((cfg) => postOutputDecision(cfg, recordId, body, key));
+// Owner eligibility from this request's own reads (live card + version, supervisor board, exact output review) — never
+// from the browser. See output-decision-guard.mjs: a validated blocked review is refused before sending; an unreadable
+// input is unknown (the bridge is not called and a pending same-key retry is kept rather than released).
+export const decideOutput = (recordId: string, body: { version_digest: string }, key: string) =>
+  guarded((cfg) => guardOutputDecision({ bridge: cfg, milo: miloConfigFromEnv(), recordId, body, key }));
 export const retryOutputHandoff = (recordId: string, decisionId: string) => guarded((cfg) => postHandoffRetry(cfg, recordId, decisionId));

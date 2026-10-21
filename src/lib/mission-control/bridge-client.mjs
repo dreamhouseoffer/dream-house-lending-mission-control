@@ -147,6 +147,9 @@ export function nodeTransport({ origin, target, method, headers, body, timeoutMs
 }
 
 const failure = (state, code) => ({ ok: false, state, code });
+const isBusyBody = (res) => {
+  try { return /^application\/json\b/i.test(res.contentType) && JSON.parse(res.body.toString("utf8"))?.error === "busy"; } catch { return false; }
+};
 
 const METHODS = new Set(["GET", "POST"]);
 
@@ -205,6 +208,8 @@ export async function bridgeRequest(config, method, target, { body, acceptStatus
     if (res.status === 401) return failure("unauthorized", "unauthorized");
     if (res.status === 403) return failure("unauthorized", "forbidden");
     if (res.status === 404) return failure("not_found", "not_found");
+    // The bridge's fail-fast concurrency refusal (503 {"error":"busy"}) keeps its own code: it is contention, not Hermes down.
+    if (res.status === 503 && isBusyBody(res)) return failure("hermes_unavailable", "busy");
     if (res.status === 503 || res.status === 504) return failure("hermes_unavailable", res.status === 504 ? "hermes_timeout" : "hermes_unavailable");
     return failure("error", `http_${res.status}`);
   }

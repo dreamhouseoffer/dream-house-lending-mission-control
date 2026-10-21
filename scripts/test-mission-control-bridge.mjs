@@ -178,6 +178,10 @@ test('HTTP and transport failures map to explicit disconnected/error states, nev
     assert.equal(r.state, state, String(status));
     assert.equal('data' in r, false);
   }
+  // The bridge's fail-fast concurrency refusal keeps its own code (contention), not a generic Hermes outage.
+  assert.deepEqual(await bridgeGet(config, '/v0/tasks', { transport: fixture(503, { error: 'busy' }).transport }), { ok: false, state: 'hermes_unavailable', code: 'busy' });
+  assert.equal((await bridgeGet(config, '/v0/tasks', { transport: fixture(503, { error: 'hermes_unavailable' }).transport })).code, 'hermes_unavailable');
+  assert.equal((await bridgeGet(config, '/v0/tasks', { transport: fixture(503, 'busy', 'text/plain').transport })).code, 'hermes_unavailable');
   assert.equal((await bridgeGet(config, '/v0/tasks', { transport: fixture(200, '<html>', 'text/html').transport })).state, 'bad_payload');
   assert.equal((await bridgeGet(config, '/v0/tasks', { transport: fixture(200, '{bad').transport })).code, 'malformed_json');
   for (const code of ['timeout', 'refused', 'network']) {

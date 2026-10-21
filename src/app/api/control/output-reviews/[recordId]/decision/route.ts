@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: { params: { recordId: s
   try { parsed = JSON.parse(raw); } catch { return json({ outcome: "refused", code: "malformed_json" }, 400); }
   const body = validateDecisionBody(parsed);
   if (!body) return json({ outcome: "refused", code: "invalid_input" }, 400);
-  const r = (await decideOutput(params.recordId, body, key)) as { ok?: false; state?: string; outcome?: string; code?: string };
+  const r = (await decideOutput(params.recordId, body as { version_digest: string }, key)) as { ok?: false; state?: string; outcome?: string; code?: string };
   if (r.ok === false) return json({ outcome: "refused", code: r.code ?? r.state }, r.state === "unauthenticated" ? 401 : 503);
   if (r.outcome === "saved" || r.outcome === "replayed") return json(r, 200);
   if (r.outcome === "refused") return json(r, 409);

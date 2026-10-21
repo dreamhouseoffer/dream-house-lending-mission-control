@@ -10,6 +10,7 @@ import {
   activeMiloFilter,
   decisionGroup,
   fetchMiloApprovals,
+  fetchMiloRecord,
   filterMiloCards,
   legacyListUrl,
   miloCardCaveat,
@@ -376,8 +377,12 @@ test('Milo board page: explicit owner vs Hermie ownership, default focus, review
   assert.match(s, /aria-selected=\{shownLane === l\.id\}/);
   assert.match(s, /shownLane === l\.id \? "flex" : "hidden"\} lg:flex/);
   // Drawer: actual output panel renders before the original request.
-  const panelAt = s.indexOf('<OutputReviewPanel recordId={c.id} onChange={onOutputChange} />');
+  const panelAt = s.indexOf('<OutputReviewPanel recordId={c.id} onChange={onOutputChange} eligibility={eligibility} />');
   assert.ok(panelAt > 0 && panelAt < s.indexOf('Original request (assignment &amp; evidence)'), 'draft/comparisons before original request');
+  // run75 browser regression: the panel's own unconfirmed op (board: output_unconfirmed) keeps its locked notes/controls.
+  const ps = await src('src/app/milo-approvals/output-review-panel.tsx');
+  assert.match(ps, /const canDecide = bridgeOpen && \(notEligible === null \|\| Boolean\(pending\)\);/);
+  assert.match(ps, /const locked = sending \|\| Boolean\(pending\)/, 'a pending op keeps every control locked');
   assert.match(s, /Acceptance is not publication/);
   assert.match(s, /data-testid="lane-owner"/);
   // Approved assignment is a plain status, not a disabled primary CTA; the approve CTA exists only when unapproved.
@@ -484,4 +489,17 @@ test('the client page graph stays free of node builtins; the signal hash lives i
   assert.match(await src('src/lib/mission-control/approval-signal-version.mjs'), /from "node:crypto"/);
   // Pinned vector: sha256 over JSON of the 8 version fields (verbatim strings, else JSON, else null), first 16 hex.
   assert.equal(approvalSignalVersion({ Decision: 'Approved', Status: 'Approved', 'Approved At': '2026-10-18T15:00:00.000Z' }), '9755cd8717ba690c');
+});
+
+test('fetchMiloRecord reads exactly one card by id (server decision guard), failing closed on anything else', async () => {
+  const r = rec({ Decision: 'Approved' });
+  const calls = [];
+  const ok = await fetchMiloRecord(config, r.id, { transport: async (url, init) => { calls.push([url, init.cache]); return json(r); } });
+  assert.deepEqual(ok, { ok: true, record: r });
+  assert.deepEqual(calls, [[`https://api.airtable.com/v0/${config.baseId}/${config.tableId}/${r.id}`, 'no-store']]);
+  assert.equal((await fetchMiloRecord(config, r.id, { transport: async () => json({ ...r, id: 'recOTHER000000000' }) })).code, 'record_mismatch');
+  assert.equal((await fetchMiloRecord(config, r.id, { transport: async () => json({}, 404) })).code, 'table_not_found');
+  assert.equal((await fetchMiloRecord(config, r.id, { transport: async () => { throw new Error('x'); } })).code, 'network_error');
+  assert.equal((await fetchMiloRecord(config, 'nope', { transport: async () => json(r) })).code, 'invalid_record_id');
+  assert.equal((await fetchMiloRecord(readMiloConfig({}), r.id)).state, 'not_configured');
 });
