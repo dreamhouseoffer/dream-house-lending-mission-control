@@ -1,8 +1,11 @@
 // Contract tests for the Milo Growth Board lane derivation. All cards, ids, versions and supervisor states are SYNTHETIC.
 import test from "node:test";
 import assert from "node:assert/strict";
-import { LANE_IDS, LANES, OWNER_LANES, QUESTION_MAX, defaultLane, boardIsStale, buildMiloBoard, classifyCard, decisionOp, effectMessage, inputQuestion, isRetryable, outputKey, settleOutputRead } from "../src/lib/mission-control/milo-board.mjs";
+import { LANE_IDS, LANES, OWNER_LANES, QUESTION_MAX, defaultLane, boardIsStale, buildMiloBoard, classifyCard, decisionOp, effectMessage, inputQuestion, isRetryable, outputKey, settleOutputRead, panelEligibility, decisionEligibility } from "../src/lib/mission-control/milo-board.mjs";
 import { checkOutputReview } from "../src/lib/mission-control/output-review-model.mjs";
+import { guardOutputDecision } from "../src/lib/mission-control/output-decision-guard.mjs";
+import { readBridgeConfig } from "../src/lib/mission-control/bridge-client.mjs";
+import { readMiloConfig } from "../src/lib/mission-control/milo-approvals-client.mjs";
 import { MILO_BOARD_MAX_LINKED, MILO_BOARD_MAX_REASON, MILO_BOARD_MAX_RECORDS, checkMiloBoard } from "../src/lib/mission-control/milo-board-client.mjs";
 
 const id = (n) => `recSYN${String(n).padStart(11, "0")}`;
@@ -695,4 +698,149 @@ test("newer parent-reviewed undecided v2 returns to Your Review; an older read c
   let later = settleOutputRead({}, a.id, { ...v1Revised, gen: 4 }, 4, outputKey(t));
   later = settleOutputRead(later, a.id, { ...v2, gen: 3 }, 4, outputKey(t));
   assert.equal(buildMiloBoard({ approvals: [a], board: board([r]), outputs: later }).owner.review, 0);
+});
+
+// ---- Owner decision eligibility (run75 correction): lane, next action and permitted draft decisions agree ------------
+const readyReview = (n, cur = {}, top = {}) => checkOutputReview(rawReview(tgt(n), cur, top));
+const elig = (a, r, review, digest = DG("a")) => decisionEligibility({ approval: a, board: board([r]), review, versionDigest: digest });
+
+test("panel eligibility: only an owner_review card on a fresh board opens decisions, bound to its exact version digest", () => {
+  const a = approval(1), r = acc(1);
+  const ready = withOut(a, r, okEntry(tgt(1)));
+  assert.equal(ready.outputDigest, DG("a"));
+  assert.deepEqual(panelEligibility(ready), { ok: true, digest: DG("a"), reason: null });
+  const stale = panelEligibility(ready, { stale: true });
+  assert.equal(stale.ok, false); assert.match(stale.reason, /stale/);
+  // Hermie-owned cards (mismatch, needs_input, checking, unreadable) stay read-only and say why, with the card's next step.
+  const mismatch = withOut(a, r, okEntry(tgt(1), readyReview(1, { task_id: "t_aaaa0007" })));
+  assert.equal(mismatch.kind, "output_mismatch");
+  const pm = panelEligibility(mismatch);
+  assert.equal(pm.ok, false); assert.equal(pm.digest, null); assert.ok(pm.reason.includes("not in Your Review") && pm.reason.includes(mismatch.next));
+  const needsInput = withOut(approval(2, { proposedChange: "Which rate sheet?" }), rec(2, "needs_input", { disposition: disp(2, "needs_input"), linked: [task("t_aaaa0002", { has_attachments: true })] }));
+  assert.equal(needsInput.kind, "needs_input");
+  assert.equal(panelEligibility(needsInput).ok, false);
+  for (const e of [undefined, { key: outputKey(tgt(1)), gen: 1, state: "loading" }, { key: outputKey(tgt(1)), gen: 1, state: "error", code: "busy" }]) {
+    assert.equal(panelEligibility(withOut(a, r, e)).ok, false, `not eligible while ${e?.state ?? "unread"}`);
+  }
+  assert.equal(panelEligibility(null).ok, false);
+});
+
+test("server decision guard: exact ready version passes; mismatched, non-owner, stale or wrong-digest decisions are refused", () => {
+  const a = approval(1), r = acc(1);
+  assert.deepEqual(elig(a, r, readyReview(1)), { ok: true, basis: "owner_review" });
+  assert.equal(elig(a, r, readyReview(1), DG("d")).code, "not_owner_eligible", "another digest than the classified version");
+  assert.equal(elig(a, r, readyReview(1, { task_id: "t_aaaa0007" })).code, "not_owner_eligible", "draft not bound to the accepted task");
+  assert.equal(elig(a, r, readyReview(1, { review: { ...rawReview(tgt(1)).current.review, source_id: id(9) } })).code, "not_owner_eligible", "present source binding mismatch");
+  // Conventional repro: card is Hermie/needs_input, yet the bridge alone would call its parent-reviewed draft decidable.
+  const conv = approval(2, { proposedChange: "Which rate sheet?" });
+  const convRec = rec(2, "needs_input", { disposition: disp(2, "needs_input"), linked: [task("t_aaaa0002", { has_attachments: true })] });
+  const convReview = checkOutputReview(rawReview({ id: id(2), version: V(2), task: "t_aaaa0002" }));
+  assert.equal(convReview.controls.approve, true, "bridge controls open on their own");
+  assert.equal(elig(conv, convRec, convReview).code, "not_owner_eligible");
+  // Card edited after Hermie's acceptance (live version differs from the supervisor's): never the owner's.
+  assert.equal(elig(approval(1, { version: V(77) }), r, readyReview(1)).code, "not_owner_eligible");
+  // Stale disposition (linked state changed) is Hermie reconciliation.
+  assert.equal(elig(a, acc(1, { disposition: disp(1, "draft_done", { observed_matches: false }) }), readyReview(1)).code, "not_owner_eligible");
+  // Undecidable per the bridge (not parent reviewed) / owner not needed / blocked.
+  assert.equal(elig(a, r, readyReview(1, { reviewable: false, not_reviewable: "not_parent_reviewed" })).code, "not_owner_eligible");
+  assert.equal(elig(a, r, readyReview(1, {}, { state: "blocked", blocked: { code: "current_output_invalid", task_id: "t_aaaa0009" }, current: null })).code, "not_owner_eligible");
+  // Unreadable inputs are unverified (the route answers "unknown", keeping a pending same-key retry).
+  for (const bad of [{ board: null }, { review: null }, { approval: null }, { versionDigest: "nope" }, { review: { ...readyReview(1), record_id: id(5) } }]) {
+    assert.equal(decisionEligibility({ approval: a, board: board([r]), review: readyReview(1), versionDigest: DG("a"), ...bad }).code, "eligibility_unverified");
+  }
+});
+
+test("server decision guard: a version already decided lets only the bridge replay/refuse (same-key recovery kept)", () => {
+  const a = approval(1), r = acc(1), t = tgt(1);
+  // After a confirmed-but-unacknowledged approve the card leaves Your Review (output_approved) ...
+  const decided = readyReview(1, { decision: receiptOf(t, "approve") }, { history: [receiptOf(t, "approve")] });
+  assert.equal(withOut(a, r, okEntry(t, decided)).kind, "output_approved");
+  // ... yet the same-key retry on that exact digest still reaches the bridge, which replays it (it cannot record a second).
+  assert.deepEqual(elig(a, r, decided), { ok: true, basis: "recorded_decision" });
+  // A revise whose revision moved the card to Hermie: the decided older digest is still in history -> replay allowed.
+  const revising = acc(1, { class: "linked_queued", linked: [task("t_aaaa0009", { has_attachments: true }), task("t_aaaa0010", { status: "todo" })] });
+  assert.deepEqual(elig(a, revising, readyReview(1, { decision: receiptOf(t, "revise") }, { history: [receiptOf(t, "revise")] })), { ok: true, basis: "recorded_decision" });
+  // A decision on a DIFFERENT digest never opens an undecided one on a non-owner card.
+  assert.equal(elig(a, revising, readyReview(1, {}, { history: [receiptOf(t, "reject", { version_digest: DG("e") })] })).code, "not_owner_eligible");
+});
+
+test("source binding authority: null parent-review source fields are legacy-optional; the binding comes from current disposition + record link + accepted task", () => {
+  // Live CalHFA shape: parent review carries no source_id/source_version.
+  const a = approval(1), r = acc(1);
+  const unbound = readyReview(1, { review: { ...rawReview(tgt(1)).current.review, source_id: null, source_version: null } });
+  // Owner-ready only through Hermie's CURRENT draft_done disposition at this exact card version + linked digest, naming
+  // the task whose registered output (record-linked by workspace, digest includes record id) is current.
+  assert.equal(withOut(a, r, okEntry(tgt(1), unbound)).kind, "owner_review");
+  assert.deepEqual(elig(a, r, unbound), { ok: true, basis: "owner_review" });
+  // Remove any one positive authority and it fails closed, even with null source fields.
+  assert.notEqual(withOut(a, acc(1, { disposition: disp(1, "draft_done", { version_current: false }) }), okEntry(tgt(1), unbound)).kind, "owner_review");
+  assert.notEqual(withOut(a, acc(1, { disposition: disp(1, "draft_done", { task: "t_aaaa0007" }) }), okEntry(tgt(1), unbound)).kind, "owner_review");
+  assert.equal(elig(approval(1, { version: V(42) }), r, unbound).code, "not_owner_eligible");
+  assert.equal(withOut(a, r, okEntry(tgt(1), readyReview(1, { task_id: "t_aaaa0007", review: unbound.current.review }))).kind, "output_mismatch");
+  // Present-but-different source fields still reject (unchanged guarantee).
+  assert.equal(withOut(a, r, okEntry(tgt(1), readyReview(1, { review: { ...unbound.current.review, source_version: V(98) } }))).kind, "output_mismatch");
+});
+
+// ---- Server decision wrapper (run77): the actual guard + forward over fake transports, never a real bridge/Airtable ------
+const jsonRes = (status, payload) => ({ status, contentType: "application/json; charset=utf-8", body: Buffer.from(JSON.stringify(payload)) });
+function wrapper({ review = jsonRes(200, rawReview(tgt(1))), boardRes = jsonRes(200, board([acc(1)])), card = { ok: true, status: 200, data: { id: id(1), fields: { Title: "Synthetic card 1", Decision: "Approved" } } } } = {}) {
+  const posts = [];
+  const bridgeTransport = async (req) => {
+    if (req.method === "POST") { posts.push(req.target); return jsonRes(201, {}); }
+    const r = req.target === "/v0/milo-board" ? boardRes : req.target === `/v0/output-reviews/${id(1)}` ? review : jsonRes(404, {});
+    if (r instanceof Error) throw r;
+    return r;
+  };
+  const airtableTransport = async () => (card instanceof Error ? Promise.reject(card) : { ok: card.ok, status: card.status, json: async () => card.data });
+  // A complete body that passes validateDecisionBody, so a forwarded call truly reaches the POST transport.
+  const body = (digest) => ({ decision: "reject", task_id: tgt(1).task, version_digest: digest, manifest_artifact_id: "a1", primary_sha256: DG("b"),
+    destinations_sha256: DG("c"), action: "approve_draft_wording_internal", notes: "" });
+  const run = (digest = DG("a")) => guardOutputDecision({ bridge: readBridgeConfig({ url: "http://127.0.0.1:1", secret: "synthetic-bridge-secret-wrapper-0123456789" }),
+    milo: readMiloConfig({ apiKey: "patSYNTHETIC.wrapper" }), recordId: id(1), body: body(digest), key: "k".repeat(32), bridgeTransport, airtableTransport });
+  return { posts, run };
+}
+const blockedRaw = (o = {}) => rawReview(tgt(1), {}, { state: "blocked", blocked: { code: "current_output_invalid", task_id: "t_aaaa0009" }, current: null, ...o });
+
+test("decision wrapper: a validated blocked review is a definitive pre-send refusal (409 path); the bridge POST is never sent", async () => {
+  assert.equal(checkOutputReview(blockedRaw())?.state, "blocked", "fixture is a strictly valid blocked review");
+  // Blocked + every other read fine, and blocked + card/board unreadable: the exact validated review alone decides.
+  for (const o of [{}, { card: { ok: false, status: 503, data: null } }, { card: new Error("offline") }, { boardRes: jsonRes(503, { error: "busy" }) }, { boardRes: jsonRes(200, { schema: "nope" }) }]) {
+    const w = wrapper({ review: jsonRes(200, blockedRaw()), ...o });
+    assert.deepEqual(await w.run(), { outcome: "refused", code: "output_blocked", provenance: "pre_send_definitive" }, JSON.stringify(Object.keys(o)));
+    assert.deepEqual(w.posts, [], "no POST transport");
+  }
+});
+
+test("decision wrapper: missing or unreadable card/board/review stays unknown (pending kept); the bridge POST is never sent", async () => {
+  const cases = {
+    review_5xx: { review: jsonRes(503, { error: "hermes_unavailable" }) },
+    review_offline: { review: new Error("offline") },
+    review_schema: { review: jsonRes(200, { ...blockedRaw(), schema: "other" }) },
+    review_other_record: { review: jsonRes(200, blockedRaw({ record_id: id(5) })) },
+    card_unreadable: { card: { ok: false, status: 500, data: null } },
+    card_offline: { card: new Error("offline") },
+    board_unreadable: { boardRes: jsonRes(503, { error: "busy" }) },
+    board_schema: { boardRes: jsonRes(200, { schema: "nope" }) },
+  };
+  for (const [name, o] of Object.entries(cases)) {
+    const w = wrapper(o);
+    assert.deepEqual(await w.run(), { outcome: "unknown", code: "eligibility_unavailable", provenance: "pre_send_unavailable" }, name);
+    assert.deepEqual(w.posts, [], `${name}: no POST transport`);
+  }
+  // A blocked review is never definitive for a malformed digest (the route validates it first; the guard stays strict).
+  const w = wrapper({ review: jsonRes(200, blockedRaw()), card: { ok: false, status: 500, data: null } });
+  assert.equal((await w.run("nope")).outcome, "unknown");
+  assert.deepEqual(w.posts, []);
+});
+
+test("decision wrapper: a blocked review with a decision recorded on this digest still forwards (same-key replay), post_send", async () => {
+  const t = tgt(1);
+  const w = wrapper({ review: jsonRes(200, blockedRaw({ history: [receiptOf(t, "reject")] })) });
+  const r = await w.run();
+  assert.equal(r.provenance, "post_send");
+  assert.deepEqual(w.posts, [`/v0/output-reviews/${id(1)}/decision`]);
+  // ...but the same unreadable card leaves it unknown and unsent: a recorded replay is never decided without every read.
+  const u = wrapper({ review: jsonRes(200, blockedRaw({ history: [receiptOf(t, "reject")] })), card: { ok: false, status: 500, data: null } });
+  assert.equal((await u.run()).outcome, "unknown");
+  assert.deepEqual(u.posts, []);
 });

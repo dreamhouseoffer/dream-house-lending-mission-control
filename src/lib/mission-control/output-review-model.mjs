@@ -187,6 +187,8 @@ const OUTCOME_COPY = {
   current_output_invalid: "The newest registered output is incomplete or its files changed. Nothing is decidable until Hermie re-registers it — nothing was saved.",
   revision_output_invalid: "The revision's registered output is incomplete or changed. Nothing is decidable until Hermie fixes it — nothing was saved.",
   too_many_linked_tasks: "Too many native tasks are linked to this card to identify the current output safely — nothing was saved.",
+  output_blocked: "This draft is blocked (its registered files changed or are incomplete) — nothing was sent or saved. Hermie re-registers it before it reaches you.",
+  not_owner_eligible: "This draft is not in Your Review right now (Hermie owns the next step for this card) — nothing was saved. Refresh the board.",
 };
 export const outcomeMessage = (code) => OUTCOME_COPY[code] || `Not saved (${code}).`;
 /** Codes where resending the SAME request (same key) is the right recovery: the outcome is unknown. */

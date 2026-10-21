@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import { decisionBody, isRecordId, isUnknownOutcome, meaningfulNotes, outcomeMessage } from "@/lib/mission-control/output-review-model.mjs";
+import { OUTPUT_READ_CONCURRENCY } from "@/lib/mission-control/milo-board.mjs";
 
 type Pair = { part: string | null; before_label: string; before: string; after_label: string; after: string };
 type Unit = { id: string | null; title: string; context: string | null; pairs: Pair[]; extra: { label: string; text: string }[] };
@@ -52,9 +53,38 @@ const VERB: Record<Decision, string> = { approve: "Wording approved", revise: "R
 /** Whether an unconfirmed decision is held for this record (presence only; the board never reads its body). */
 export const hasPendingOutputDecision = (recordId: string) => isRecordId(recordId) && readPending(recordId) !== null;
 
-// `onChange(recordId)`: this record's output state may have changed (read settled or a decision answered) — the page
-// re-reads it through the same GET so the board never trusts this view's copy.
-export function OutputReviewPanel({ recordId, onChange }: { recordId: string; onChange?: (recordId: string) => void }) {
+// One page-wide queue for every output read (board candidates and this panel): at most OUTPUT_READ_CONCURRENCY in
+// flight. A read for a record that is still QUEUED (not yet sent) is joined — it will fetch when it starts, so it is
+// never older than the caller's request; a read already in flight is never joined.
+export type OutputRead = { ok: boolean; status: number; data: { ok?: boolean; code?: string; review?: unknown } | null };
+const readQueue: { id: string; waiters: ((r: OutputRead) => void)[] }[] = [];
+let readsActive = 0;
+function pumpReads() {
+  while (readsActive < OUTPUT_READ_CONCURRENCY && readQueue.length) {
+    const job = readQueue.shift()!;
+    readsActive += 1;
+    (async (): Promise<OutputRead> => {
+      const res = await fetch(`/api/control/output-reviews/${job.id}`, { cache: "no-store" }).catch(() => null);
+      const data = res ? await res.json().catch(() => null) : null;
+      return { ok: Boolean(res?.ok), status: res?.status ?? 0, data };
+    })().then((r) => { readsActive -= 1; job.waiters.forEach((w) => w(r)); pumpReads(); });
+  }
+}
+export function readOutputReview(recordId: string): Promise<OutputRead> {
+  return new Promise((resolve) => {
+    const queued = readQueue.find((j) => j.id === recordId);
+    if (queued) queued.waiters.push(resolve);
+    else { readQueue.push({ id: recordId, waiters: [resolve] }); pumpReads(); }
+  });
+}
+
+// Owner eligibility from the board card (panelEligibility): decisions only on that exact version digest.
+export type Eligibility = { ok: boolean; digest: string | null; reason: string | null };
+
+// `onChange(recordId)`: this record's output state may have changed (read settled) — the page re-reads it through the
+// same GET so the board never trusts this view's copy. `onChange(recordId, "pending" | "answered")`: a decision for it was
+// just stored as pending or answered — the page also stops trusting every read of it from before that moment.
+export function OutputReviewPanel({ recordId, onChange, eligibility }: { recordId: string; onChange?: (recordId: string, cause?: "pending" | "answered") => void; eligibility: Eligibility }) {
   const [reviewS, setReview] = useState<Review | null>(null);
   const [loadErrorS, setLoadError] = useState<string | null>(null);
   // No read yet counts as loading: controls stay off until the first answer for this record arrives.
@@ -93,11 +123,11 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
     const mine = ++gen.current;
     setLoading(true);
     try {
-      const res = await fetch(`/api/control/output-reviews/${recordId}`, { cache: "no-store" }).catch(() => null);
-      const data = res ? await res.json().catch(() => null) : null;
+      const { ok, status, data } = await readOutputReview(recordId);
       if (mine !== gen.current) return;
-      if (res?.ok && data?.ok && data.review && data.review.record_id === recordId) { setReview(data.review as Review); setLoadError(null); onChangeRef.current?.(recordId); }
-      else setLoadError(data?.code || (res ? `http_${res.status}` : "unreachable"));
+      const got = data?.review as Review | undefined;
+      if (ok && data?.ok && got && got.record_id === recordId) { setReview(got); setLoadError(null); onChangeRef.current?.(recordId); }
+      else setLoadError(data?.code || (status ? `http_${status}` : "unreachable"));
     } finally { if (mine === gen.current) setLoading(false); }
   }, [recordId]);
   useEffect(() => {
@@ -118,7 +148,7 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
     if (o.confirmed) {
       setPendingState(null);
       setNotes("");
-      setMessage({ tone: "ok", text: `${VERB[p.decision]} for ${p.versionLabel} (receipt ${o.data?.receipt?.decision_id ?? "—"}). ${o.data?.next_step?.text ?? ""}` });
+      setMessage({ tone: "ok", text: `${VERB[p.decision]} for ${p.versionLabel}. ${o.data?.next_step?.text ?? ""}` });
       await load();
       return;
     }
@@ -145,8 +175,13 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
     const rec = recordId;
     const ep = epoch.current;
     const owns = () => shown.current === rec && (epoch.current === ep || pendingRef.current?.key === p.key);
+    // Checked imperatively (not from render state): a re-entrant click never double-sends an op still in flight, and
+    // never replaces an unresolved stored op with a new key — only that exact op may be resent.
+    const held = readPending(rec);
+    if (inflight.has(rec) || (held && held.key !== p.key)) return;
     inflight.set(rec, p.key);
     writePending(rec, p);
+    onChangeRef.current?.(rec, "pending");
     setSending(true);
     setPendingState(p);
     setMessage(null);
@@ -165,7 +200,7 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
     if (!unknown && readPending(rec)?.key === p.key) writePending(rec, null);
     const o: Outcome = { confirmed, unknown, code, data };
     answered.forEach((fn) => fn(rec, p, o, self.current));
-    onChangeRef.current?.(rec);
+    onChangeRef.current?.(rec, "answered");
     if (!owns()) return; // another record (or a newer operation) is on screen: never unlock or overwrite it
     await apply(p, o);
   }
@@ -173,6 +208,10 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
   function decide(decision: Decision) {
     const cur = review?.current;
     if (!cur) return;
+    if (inflight.has(recordId) || readPending(recordId)) {
+      setMessage({ tone: "bad", text: "An earlier decision for this card is not confirmed yet — Retry sends that same request. Nothing new was sent." });
+      return;
+    }
     const r = decisionBody(cur, decision, notes) as { ok: true; body: Record<string, unknown> } | { ok: false; code: string };
     if (!r.ok) { setMessage({ tone: "bad", text: outcomeMessage(r.code) }); return; }
     send({ key: newKey(), body: r.body, decision, versionLabel: cur.version_label });
@@ -194,7 +233,13 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
   const decided = cur?.decision ?? null;
   // Decisions need a fresh, confirmed read: never while loading, after a failed refresh (stale view) or with one unconfirmed.
   const locked = sending || Boolean(pending) || loading || Boolean(loadError);
-  const canDecide = Boolean(review && cur && !decided && review.controls.decide_unavailable === null && cur.reviewable);
+  const bridgeOpen = Boolean(review && cur && !decided && review.controls.decide_unavailable === null && cur.reviewable);
+  // The bridge's own checks are not enough: the board must also have this exact version in Your Review.
+  const notEligible = !eligibility.ok ? eligibility.reason ?? "not in Your Review"
+    : cur && eligibility.digest !== cur.version_digest ? "the draft shown differs from the version the board classified — refresh" : null;
+  // This panel's own unconfirmed op makes the board show the card as output_unconfirmed (not Your Review); that must not
+  // hide the op's locked notes. `locked` keeps every control disabled, and Retry still passes the server decision guard.
+  const canDecide = bridgeOpen && (notEligible === null || Boolean(pending));
   const lastRevise = review?.history.filter((h) => h.decision === "revise").slice(-1)[0] ?? null;
 
   return (
@@ -206,7 +251,7 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
         </button>
       </div>
       {loadError ? <p className="mt-2 text-xs text-rose-200" data-testid="output-review-error">Output review unavailable ({loadError}).{review ? " What is shown below may be out of date; decisions are disabled until a refresh succeeds." : " Nothing is assumed; refresh to retry."}</p> : null}
-      {review?.blocked ? <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-500/10 p-2 text-sm text-rose-100" data-testid="output-blocked">{review.next_step.text}{review.blocked.task_id ? <> · native task <Link className="font-mono text-emerald-300" href={`/tasks/${review.blocked.task_id}`}>{review.blocked.task_id}</Link></> : null}</p> : null}
+      {review?.blocked ? <p className="mt-2 rounded-lg border border-rose-400/25 bg-rose-500/10 p-2 text-sm text-rose-100" data-testid="output-blocked">{review.next_step.text}{review.blocked.task_id ? <> · <Link className="text-emerald-300" href={`/tasks/${review.blocked.task_id}`} data-task-id={review.blocked.task_id}>View task</Link></> : null}</p> : null}
       {!review && !loadError ? <p className="mt-2 text-xs text-white/50">Loading the registered output…</p> : null}
       {/* The unconfirmed operation is shown and retryable whatever the read state: it never depends on a successful load. */}
       {pending && !sending ? (
@@ -223,16 +268,15 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
       {review && cur ? (
         <>
           <p className="mt-1 break-words text-xs text-white/60" data-testid="output-version">
-            {cur.version_label}{cur.is_revision ? " (revision)" : ""} · native task <Link className="font-mono text-emerald-300" href={`/tasks/${cur.task_id}`}>{cur.task_id}</Link> ({cur.native_status})
-            {" · "}{cur.review ? `parent review by ${cur.review.reviewer ?? "Hermie"} ${fmt(cur.review.reviewed_at)}${cur.review.accepted ? "" : " — NOT an acceptance"}${cur.review.covers_all_declared ? "" : " — does NOT cover every declared file"}` : "no parent review yet"}
+            {cur.version_label}{cur.is_revision ? " (revision)" : ""}
+            {cur.review ? `${cur.review.accepted ? "" : " — parent review is NOT an acceptance"}${cur.review.covers_all_declared ? "" : " — parent review does NOT cover every declared file"}` : " · no parent review yet"}
           </p>
-          {cur.review?.decision ? <p className="mt-1 break-words text-[11px] text-white/50" data-testid="parent-review-decision">Parent review: {cur.review.decision}</p> : null}
           {!review.blocked ? <p className={`mt-2 rounded-lg p-2 text-sm ${review.next_step.owner_needed ? "border border-amber-400/25 bg-amber-500/10 text-amber-100" : "border border-white/10 bg-white/[0.04] text-white/80"}`} data-testid="output-next-step">
             {review.next_step.text}
           </p> : null}
           {review.revision ? <p className="mt-2 text-xs text-white/70" data-testid="output-revision">
             Revision{review.revision.requested_against_label ? ` of ${review.revision.requested_against_label}` : ""}: {review.revision.label}
-            {review.revision.revision_task_id ? <> · <Link className="font-mono text-emerald-300" href={`/tasks/${review.revision.revision_task_id}`}>{review.revision.revision_task_id}</Link></> : null}
+            {review.revision.revision_task_id ? <> · <Link className="text-emerald-300" href={`/tasks/${review.revision.revision_task_id}`} data-task-id={review.revision.revision_task_id}>View task</Link></> : null}
             {review.revision.state === "handoff_unconfirmed" && lastRevise ? (
               <button disabled={sending} onClick={() => retryHandoff(lastRevise.decision_id)} className="ml-2 rounded border border-amber-300/30 px-2 py-0.5 text-amber-100 disabled:opacity-50" data-testid="handoff-retry">Retry handoff</button>
             ) : null}
@@ -281,7 +325,7 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
 
           {decided ? (
             <p className="mt-3 rounded-lg border border-emerald-400/25 bg-emerald-500/10 p-2 text-sm text-emerald-100" data-testid="output-receipt">
-              {VERB[decided.decision]} for {cur.version_label} on {fmt(decided.decided_at)} · receipt <span className="font-mono text-xs">{decided.decision_id}</span>{decided.notes ? <span className="mt-1 block whitespace-pre-wrap text-xs text-emerald-100/80">Notes: {decided.notes}</span> : null}
+              {VERB[decided.decision]} for {cur.version_label} on {fmt(decided.decided_at)}{decided.notes ? <span className="mt-1 block whitespace-pre-wrap text-xs text-emerald-100/80">Notes: {decided.notes}</span> : null}
             </p>
           ) : canDecide ? (
             <div className="mt-3" data-testid="output-controls">
@@ -296,6 +340,10 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
               </div>
               {!review.controls.revise && review.controls.revise_unavailable ? <p className="mt-1 text-[11px] text-white/45" data-testid="revise-unavailable">Revision: {review.controls.revise_unavailable}</p> : null}
             </div>
+          ) : bridgeOpen && notEligible ? (
+            <p className="mt-3 rounded-lg border border-white/10 bg-white/[0.04] p-2 text-xs text-white/70" data-testid="output-not-eligible">
+              Read-only: decisions on this draft are off. {notEligible}
+            </p>
           ) : (
             <p className="mt-3 text-[11px] text-white/50" data-testid="output-no-decision">No decision available on this version ({review.controls.decide_unavailable ?? cur.not_reviewable ?? "unavailable"}).</p>
           )}
@@ -303,7 +351,11 @@ export function OutputReviewPanel({ recordId, onChange }: { recordId: string; on
           {message ? <p role="status" data-testid="output-message" className={`mt-2 break-words rounded-lg p-2 text-sm ${message.tone === "ok" ? "border border-emerald-400/25 bg-emerald-500/10 text-emerald-100" : "border border-rose-400/25 bg-rose-500/10 text-rose-100"}`}>{message.text}</p> : null}
 
           <details className="mt-3 text-xs text-white/55" data-testid="output-secondary">
-            <summary className="cursor-pointer text-white/65">Files, earlier versions and decision history</summary>
+            <summary className="cursor-pointer text-white/65">Details · task, review, receipt, files and decision history</summary>
+            <p className="mt-1 break-words" data-testid="output-task">Native task <Link className="font-mono text-emerald-300" href={`/tasks/${cur.task_id}`}>{cur.task_id}</Link> ({cur.native_status})</p>
+            <p className="mt-1 break-words" data-testid="output-parent-review">{cur.review ? `Parent review by ${cur.review.reviewer ?? "Hermie"} ${fmt(cur.review.reviewed_at)}` : "No parent review yet"}</p>
+            {cur.review?.decision ? <p className="mt-1 break-words" data-testid="parent-review-decision">Parent review: {cur.review.decision}</p> : null}
+            {decided ? <p className="mt-1 break-words" data-testid="output-receipt-id">Receipt <span className="font-mono">{decided.decision_id}</span></p> : null}
             <ul className="mt-1 space-y-0.5">{cur.files.map((f) => <li key={f.artifact_id} className="break-all">{f.role === "shown_draft" ? "Shown draft" : "Supporting"}: {f.name} · {f.size} bytes · <span className="font-mono">{f.sha256?.slice(0, 12) ?? "unreadable"}</span></li>)}</ul>
             {review.previous.length ? <ul className="mt-1">{review.previous.map((p) => <li key={p.version_label}>{p.version_label}{p.is_revision ? " (revision)" : ""} · {p.task_id}{p.decision ? ` · ${VERB[p.decision.decision]}` : " · no decision"}</li>)}</ul> : null}
             {review.history.length ? <ul className="mt-1">{review.history.map((h) => <li key={h.decision_id}>{fmt(h.decided_at)} · {VERB[h.decision]} · {h.version_label ?? "version no longer registered"}</li>)}</ul> : null}

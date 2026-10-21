@@ -222,7 +222,10 @@ function fromClass(approval, rec, ctx = {}) {
 // re-checked by checkOutputReview), read per candidate and bound to the exact card id, card version and accepted task.
 // Missing, loading, failed, mismatched, decided or unconfirmed reads are all Hermie's — never owner homework.
 
-export const OUTPUT_READ_CONCURRENCY = 4;
+// Whole-page cap on concurrent output reads (board candidates AND the open panel share it). Each read holds one of the
+// bridge's 4 native CLI slots for ~2s; excess bridge calls fail fast `busy` (503). Four page reads alone filled every
+// slot, so the panel, task pages and the runner tick were refused. Two leaves the bridge headroom.
+export const OUTPUT_READ_CONCURRENCY = 2;
 /** Binding of one output read: an answer for another card version or accepted task never counts for this one. */
 export const outputKey = (t) => `${t.id}|${t.version}|${t.task}`;
 
@@ -285,8 +288,52 @@ function ownerDraftOrHermie(approval, rec, base, outputs) {
       "Hermie completes the parent review of every file before it reaches you.", ver);
   }
   if (!r.next_step.owner_needed) return hermie("output_not_owner", "Hermie next step", null, r.next_step.text, ver);
-  return card(approval, "review", "owner_review", { ...at, taskId: cur.task_id, ...ver, label: "Draft ready for you", recovery: "owner",
+  // outputDigest: the exact version the owner may decide — the only one the panel and the server decision guard accept.
+  return card(approval, "review", "owner_review", { ...at, taskId: cur.task_id, ...ver, outputDigest: cur.version_digest, label: "Draft ready for you", recovery: "owner",
     next: "Internal draft accepted by Hermie — your review. Acceptance is not publication; the website has not changed." });
+}
+
+// ---- Owner decision eligibility -------------------------------------------------------------------------------------
+// The output review alone (parent review PASS, undecided) does not make a draft the owner's: the card must ALSO be in
+// Your Review — Hermie's current draft_done acceptance for this exact card version and accepted task, bound to that exact
+// read. Panel (UI) and decision route (server) use the same classification, so lane, next action and permitted draft
+// decisions never disagree. The draft itself stays readable either way.
+
+const DIGEST_RE = /^[0-9a-f]{64}$/;
+
+/** Panel gate for one board card: decisions only on an owner_review card's exact version, on a fresh board. */
+export function panelEligibility(c, { stale = false } = {}) {
+  if (!c) return { ok: false, digest: null, reason: "this card is not on the board read" };
+  if (stale) return { ok: false, digest: null, reason: "the board is stale — refresh before deciding" };
+  if (c.lane === "review" && c.kind === "owner_review" && c.recovery === "owner" && typeof c.outputDigest === "string" && DIGEST_RE.test(c.outputDigest)) {
+    return { ok: true, digest: c.outputDigest, reason: null };
+  }
+  return { ok: false, digest: null, reason: `${c.label}${c.blocker ? ` (${c.blocker})` : ""} — not in Your Review. ${c.next}` };
+}
+
+function classifyOne(approval, board, outputs) {
+  return Object.values(buildMiloBoard({ approvals: [approval], board, outputs }).lanes).flat()[0] ?? null;
+}
+
+/**
+ * Server decision guard (route handler, before the bridge is called). `approval` = the live card (with its server-computed
+ * version), `board` = the supervisor board, `review` = a strictly checked output review, all read for this request.
+ * Returns { ok: true, basis } | { ok: false, code, lane?, kind? }.
+ *  - owner_review: the card classifies into Your Review and its exact version digest is the one being decided;
+ *  - recorded_decision: a decision is already recorded on that exact digest. The bridge can then only replay the SAME
+ *    idempotency key (unknown-outcome recovery) or refuse — it never records a second decision on a decided version.
+ */
+export function decisionEligibility({ approval, board, review, versionDigest }) {
+  if (!approval || !board || !review || review.record_id !== approval.id || typeof versionDigest !== "string" || !DIGEST_RE.test(versionDigest)) {
+    return { ok: false, code: "eligibility_unverified" };
+  }
+  if ((review.history ?? []).some((h) => h?.version_digest === versionDigest)) return { ok: true, basis: "recorded_decision" };
+  const first = classifyOne(approval, board, null);
+  const target = first?.outputTarget;
+  if (!target) return { ok: false, code: "not_owner_eligible", lane: first?.lane ?? null, kind: first?.kind ?? null };
+  const c = classifyOne(approval, board, { [approval.id]: { key: outputKey(target), gen: 0, state: "ok", review, pending: false } });
+  if (c && c.lane === "review" && c.kind === "owner_review" && c.recovery === "owner" && c.outputDigest === versionDigest) return { ok: true, basis: "owner_review" };
+  return { ok: false, code: "not_owner_eligible", lane: c?.lane ?? null, kind: c?.kind ?? null };
 }
 
 /**

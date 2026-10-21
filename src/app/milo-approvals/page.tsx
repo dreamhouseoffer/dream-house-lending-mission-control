@@ -13,13 +13,13 @@ import {
   defaultLane,
   effectMessage,
   isRetryable,
-  OUTPUT_READ_CONCURRENCY,
   outputKey,
+  panelEligibility,
   settleOutputRead,
 } from "@/lib/mission-control/milo-board.mjs";
 import { checkOutputReview } from "@/lib/mission-control/output-review-model.mjs";
 import { DECISION_BOUNDARY } from "@/lib/mission-control/milo-approvals-client.mjs";
-import { OutputReviewPanel, hasPendingOutputDecision } from "./output-review-panel";
+import { OutputReviewPanel, hasPendingOutputDecision, readOutputReview, type Eligibility } from "./output-review-panel";
 
 type Approval = {
   id: string;
@@ -53,6 +53,7 @@ type BoardCard = {
   id: string; title: string; lane: string; kind: string; label: string; next: string; recovery: "owner" | "hermie" | null; blocker: string | null;
   unknown: boolean; notesAck: boolean; stale: boolean; staleDisposition: StaleDisposition | null; blockReason: BlockReason | null;
   taskId: string | null; linked: LinkedFact[]; supervisor: SupervisorRecord | null; question: string | null; questionFull: boolean; approval: Approval;
+  outputTarget?: OutputTarget; outputDigest?: string;
 };
 // Per card: the owner's draft plus the saved value it was seeded from. A draft equal to its base is unedited.
 type NoteDraft = { draft: string; base: string };
@@ -60,7 +61,8 @@ type Built = { lanes: Record<string, BoardCard[]>; counts: Record<string, number
   needsYouSplit: { owner: number; hermie: number }; owner: { review: number; needs_you: number; total: number }; hermie: number; unknown: number; approvedPermission: number; state: string; outputTargets: OutputTarget[] };
 type OutputTarget = { id: string; version: string; task: string };
 // One exact output read per review candidate (strictly checked; bound to card id + version + accepted task).
-type OutputEntry = { key: string; gen: number; state: "loading" | "ok" | "error"; code?: string; review?: unknown; pending?: boolean };
+// `superseded`: a decision for this card was stored or answered after this read started — it is no longer authority.
+type OutputEntry = { key: string; gen: number; state: "loading" | "ok" | "error"; code?: string; review?: unknown; pending?: boolean; superseded?: boolean };
 type Action = "approve" | "reject" | "needs_changes" | "notes";
 type PendingOp = { id: string; action: Action; baseVersion: string | null; body: string };
 
@@ -75,6 +77,7 @@ const LANE_TONE: Record<string, string> = {
 
 const fmt = (iso: string | null | undefined) => (iso ? new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "unknown");
 const text = (v: string | null | undefined, fallback = "Not provided") => (v && v.trim() ? v : fallback);
+const ACTION_LABEL: Record<Action, string> = { approve: "original request approval", needs_changes: "original request: needs changes", reject: "original request: reject", notes: "notes" };
 
 export default function MiloGrowthBoardPage() {
   const [approvals, setApprovals] = useState<Approval[] | null>(null);
@@ -151,7 +154,17 @@ export default function MiloGrowthBoardPage() {
     return () => { clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, [load]);
 
-  const built = useMemo(() => (approvals ? (buildMiloBoard({ approvals, board: board as never, boardError: boardError as never, truncated, outputs: outputs as never }) as unknown as Built) : null), [approvals, board, boardError, truncated, outputs]);
+  // A read's `pending` flag is what was stored when it SETTLED. If this record's unconfirmed op has since been released
+  // (confirmed or definitively refused), that read predates the answer: show it as still being checked (Hermie) until a
+  // newer read lands — never as "not confirmed" next to a receipt, nor as owner work. A newly stored op counts at once.
+  // A read superseded by a decision is the same: unconfirmed while the op is held, else checking until a newer read.
+  const outputsNow = useMemo(() => Object.fromEntries(Object.entries(outputs).map(([id, e]) => {
+    if (e.state !== "ok") return [id, e];
+    const held = hasPendingOutputDecision(id);
+    if (e.superseded) return [id, held ? { ...e, pending: true } : { key: e.key, gen: e.gen, state: "loading" }];
+    return [id, held === Boolean(e.pending) ? e : held ? { ...e, pending: true } : { key: e.key, gen: e.gen, state: "loading" }];
+  })) as Record<string, OutputEntry>, [outputs]);
+  const built = useMemo(() => (approvals ? (buildMiloBoard({ approvals, board: board as never, boardError: boardError as never, truncated, outputs: outputsNow as never }) as unknown as Built) : null), [approvals, board, boardError, truncated, outputsNow]);
   // Targets come from the supervisor facts alone (never from output reads), so reading them cannot loop.
   targetsRef.current = Object.fromEntries((built?.outputTargets ?? []).map((t) => [t.id, outputKey(t)]));
   const targetsKey = Object.values(targetsRef.current).join(",");
@@ -163,23 +176,28 @@ export default function MiloGrowthBoardPage() {
     if (!reads.length) return;
     for (const r of reads) latestOut.current[r.id] = r.gen;
     setOutputs((cur) => { const n = { ...cur }; for (const r of reads) if (n[r.id]?.key !== r.key) n[r.id] = { key: r.key, gen: r.gen, state: "loading" }; return n; });
-    const queue = [...reads];
-    const worker = async () => {
-      for (let r = queue.shift(); r; r = queue.shift()) {
-        const res = await fetch(`/api/control/output-reviews/${r.id}`, { cache: "no-store" }).catch(() => null);
-        const data = res ? await res.json().catch(() => null) : null;
-        const review = res?.ok && data?.ok ? (checkOutputReview(data.review) as { record_id: string } | null) : null;
-        const entry: OutputEntry = review && review.record_id === r.id
-          ? { key: r.key, gen: r.gen, state: "ok", review, pending: hasPendingOutputDecision(r.id) }
-          : { key: r.key, gen: r.gen, state: "error", code: data?.code || (res ? (res.ok ? "schema_mismatch" : `http_${res.status}`) : "unreachable") };
-        setOutputs((cur) => settleOutputRead(cur, r.id, entry, latestOut.current[r.id], targetsRef.current[r.id]) as Record<string, OutputEntry>);
-      }
-    };
-    await Promise.all(Array.from({ length: Math.min(OUTPUT_READ_CONCURRENCY, reads.length) }, worker));
+    // Concurrency is bounded page-wide by the shared reader (the open panel's reads count too).
+    await Promise.all(reads.map(async (r) => {
+      const { ok, status, data } = await readOutputReview(r.id);
+      const review = ok && data?.ok ? (checkOutputReview(data.review) as { record_id: string } | null) : null;
+      const entry: OutputEntry = review && review.record_id === r.id
+        ? { key: r.key, gen: r.gen, state: "ok", review, pending: hasPendingOutputDecision(r.id) }
+        : { key: r.key, gen: r.gen, state: "error", code: data?.code || (status ? (ok ? "schema_mismatch" : `http_${status}`) : "unreachable") };
+      setOutputs((cur) => settleOutputRead(cur, r.id, entry, latestOut.current[r.id], targetsRef.current[r.id]) as Record<string, OutputEntry>);
+    }));
   }, []);
   // Every board refresh (poll, reload, after a card decision) and every change of candidates re-reads them.
   useEffect(() => { if (targetsKey) readOutputs(); }, [readOutputs, targetsKey, fetchedAt]);
-  const onOutputChange = useCallback((id: string) => { readOutputs([id]); }, [readOutputs]);
+  // Decision lifecycle (op stored as pending, or answered): every read of this card started before now is superseded —
+  // in flight it can no longer land, and the retained one stops counting — so the pre-decision read never shows owner
+  // work again while the post-answer read is queued. Only a read started after the answer (or a later one) is authority.
+  const onOutputChange = useCallback((id: string, cause?: "pending" | "answered") => {
+    if (cause) {
+      latestOut.current[id] = ++outGen.current;
+      setOutputs((cur) => (cur[id] && !cur[id].superseded ? { ...cur, [id]: { ...cur[id], superseded: true } } : cur));
+    }
+    if (cause !== "pending") readOutputs([id]);
+  }, [readOutputs]);
 
   const stale = approvals !== null && boardIsStale(fetchedAt, now);
   const shownLane = tab ?? (built ? defaultLane(built.counts) : "needs_you");
@@ -285,7 +303,8 @@ export default function MiloGrowthBoardPage() {
                 <ul className="flex flex-col gap-2 p-2 lg:max-h-[calc(100vh-15rem)] lg:overflow-y-auto">
                   {built.lanes[l.id].length === 0 ? <li className="px-1 py-3 text-xs text-white/35">Nothing here.</li> : null}
                   {built.lanes[l.id].map((c) => (
-                    <CardTile key={c.id} c={c} onOpen={() => { setOpenId(c.id); onOutputChange(c.id); }} pending={Boolean(pending[c.id])} />
+                    // No read on open: the panel's own read (on mount) triggers the board re-read when it lands.
+                    <CardTile key={c.id} c={c} onOpen={() => setOpenId(c.id)} pending={Boolean(pending[c.id])} read={outputs[c.id]} />
                   ))}
                 </ul>
               </section>
@@ -306,6 +325,7 @@ export default function MiloGrowthBoardPage() {
           message={message[open.id] ?? ""}
           onClose={() => { setOpenId(null); onOutputChange(open.id); }}
           onOutputChange={onOutputChange}
+          eligibility={panelEligibility(open, { stale: stale || refreshFailed }) as Eligibility}
         />
       ) : null}
     </div>
@@ -323,34 +343,61 @@ function Banner({ tone, children, testId }: { tone: "bad" | "warn"; children: Re
   return <div data-testid={testId} role="status" className={`mb-3 break-words rounded-xl border p-3 text-sm ${cls}`}>{children}</div>;
 }
 
-function CardTile({ c, onOpen, pending }: { c: BoardCard; onOpen: () => void; pending: boolean }) {
+// data-output-read names the exact output read this card was classified from (bridge observed_at, or the error code), so
+// a reader can prove which response rendered rather than guessing from network order.
+const readMarker = (e: OutputEntry | undefined) => (!e ? undefined : e.state === "ok" ? `ok:${(e.review as { observed_at?: string | null })?.observed_at ?? ""}` : `${e.state}:${e.code ?? ""}`);
+
+// The card's single call to action (carried by its open button): what opening it is for.
+const cardCta = (c: BoardCard) => (c.lane === "review" ? "Review draft" : c.lane === "needs_you" && c.recovery !== "hermie" && !c.unknown ? "Answer request" : "View status");
+
+// Compact card: short title first, one status/owner line, one clamped next-action line, one CTA. Warnings and an exact
+// recorded request are exceptions that always stay visible (never clamped away). Task links live in the drawer's Details.
+function CardTile({ c, onOpen, pending, read }: { c: BoardCard; onOpen: () => void; pending: boolean; read?: OutputEntry }) {
+  const next = `${c.blocker ? `${c.blocker}. ` : ""}${c.next}`;
+  const warn = c.stale || c.staleDisposition?.superseded || pending;
   return (
-    <li data-testid={`card-${c.id}`} data-kind={c.kind} className={`min-w-0 rounded-xl border bg-[#101010] p-2.5 ${c.unknown ? "border-rose-400/40" : "border-white/10"}`}>
+    <li data-testid={`card-${c.id}`} data-kind={c.kind} data-output-read={c.outputTarget ? readMarker(read) : undefined} className={`min-w-0 rounded-xl border bg-[#101010] p-2.5 ${c.unknown ? "border-rose-400/40" : "border-white/10"}`}>
       <button onClick={onOpen} className="block w-full min-w-0 text-left" aria-label={`Open details for ${c.title}`}>
-        <div className="flex flex-wrap items-center gap-1 text-[10px] font-bold uppercase tracking-wide">
-          <span className={`rounded-full border px-1.5 py-0.5 ${c.unknown ? "border-rose-400/40 text-rose-200" : "border-white/15 text-white/65"}`}>{c.label}</span>
-          {c.recovery ? <span className={`rounded-full px-1.5 py-0.5 ${c.recovery === "owner" ? "bg-amber-400/15 text-amber-200" : "bg-white/[0.06] text-white/55"}`}>{c.recovery === "owner" ? "You" : "Hermie"}</span> : null}
-          {c.stale ? <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-amber-200">stale</span> : null}
-          {c.staleDisposition?.superseded ? <span className="rounded-full bg-amber-500/10 px-1.5 py-0.5 text-amber-200" data-testid="stale-disposition">old “{c.staleDisposition.kind}” superseded</span> : null}
-          {c.notesAck ? <span className="rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-emerald-200" data-testid="notes-badge">notes saved</span> : null}
-          {pending ? <span className="rounded-full bg-rose-500/15 px-1.5 py-0.5 text-rose-200">unsaved</span> : null}
-        </div>
-        <h3 className="mt-1 line-clamp-2 break-words text-sm font-semibold leading-5">{c.title}</h3>
-        <p className="mt-0.5 line-clamp-3 break-words text-xs leading-4 text-white/60" data-testid="card-next">{c.blocker ? <span className="text-amber-200/80">{c.blocker}. </span> : null}{c.next}</p>
-        {c.question ? <p className="mt-1 line-clamp-2 break-words text-xs leading-4 text-amber-100/80" data-testid="card-question">Request: {c.question}</p> : null}
+        <h3 className="line-clamp-2 break-words text-sm font-semibold leading-5" title={c.title} data-testid="card-title">{c.title}</h3>
+        <p className="mt-0.5 truncate text-[11px] text-white/55" data-testid="card-status">
+          <span className={`font-semibold ${c.unknown ? "text-rose-200" : "text-white/75"}`}>{c.label}</span>
+          {c.recovery ? <span className={c.recovery === "owner" ? "text-amber-200" : ""}> · {c.recovery === "owner" ? "You" : "Hermie"}</span> : null}
+          {c.notesAck ? <span className="text-emerald-200/80" data-testid="notes-badge"> · notes saved</span> : null}
+        </p>
+        {warn ? (
+          <p className="mt-0.5 break-words text-[11px] font-semibold text-amber-200" data-testid="card-warning">
+            {[c.stale ? "Stale — refresh before acting" : null, pending ? <span key="u" className="text-rose-200">Unsaved change</span> : null,
+              c.staleDisposition?.superseded ? <span key="s" data-testid="stale-disposition">Old “{c.staleDisposition.kind}” decision superseded</span> : null]
+              .filter(Boolean).flatMap((x, i) => (i ? [" · ", x] : [x]))}
+          </p>
+        ) : null}
+        <p className="mt-0.5 line-clamp-1 break-words text-xs leading-4 text-white/60" title={next} data-testid="card-next">{c.blocker ? <span className="text-amber-200/80">{c.blocker}. </span> : null}{c.next}</p>
+        {c.question ? <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-4 text-amber-100/80" data-testid="card-question">Request: {c.question}</p> : null}
+        <span className="mt-1.5 inline-block rounded-lg border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[11px] font-semibold text-emerald-200" data-testid="card-cta">{cardCta(c)}</span>
       </button>
-      {c.taskId ? <Link href={`/tasks/${c.taskId}`} className="mt-1 inline-block font-mono text-[11px] text-emerald-300 hover:text-emerald-200" data-testid="task-link">Task {c.taskId} →</Link> : null}
     </li>
   );
 }
 
-function Details({ c, note, onNote, onAction, onRetry, pending, saving, message, onClose, onOutputChange }: {
+function Details({ c, note, onNote, onAction, onRetry, pending, saving, message, onClose, onOutputChange, eligibility }: {
   c: BoardCard; note: string; onNote: (v: string) => void; onAction: (a: Action) => void; onRetry: () => void;
-  pending: (PendingOp & { error?: string }) | null; saving: boolean; message: string; onClose: () => void; onOutputChange: (recordId: string) => void }) {
+  pending: (PendingOp & { error?: string }) | null; saving: boolean; message: string; onClose: () => void; onOutputChange: (recordId: string, cause?: "pending" | "answered") => void; eligibility: Eligibility }) {
   const a = c.approval;
   const approved = (a.decision || "").toLowerCase() === "approved";
   const locked = saving || Boolean(pending);
   const sup = c.supervisor;
+  // Same controls and handlers for both states; on an approved request they sit in a closed "change" disclosure.
+  const assignmentControls = (
+    <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="assignment-controls">
+      {!approved ? (
+        <button disabled={locked} onClick={() => onAction("approve")} className="rounded-xl bg-emerald-300 px-3 py-2 font-bold text-black disabled:opacity-50 sm:col-span-2" data-testid="assignment-approve">
+          {saving ? "Saving…" : "Original request: Record approval (permission only)"}
+        </button>
+      ) : null}
+      <button disabled={locked} onClick={() => onAction("needs_changes")} className="rounded-xl border border-amber-300/20 bg-amber-500/10 px-3 py-2 font-bold text-amber-100 disabled:opacity-50" data-testid="assignment-needs-changes">{approved ? "Change original request to: needs changes" : "Original request: needs changes"}</button>
+      <button disabled={locked} onClick={() => onAction("reject")} className="rounded-xl border border-rose-300/20 bg-rose-500/10 px-3 py-2 font-bold text-rose-100 disabled:opacity-50" data-testid="assignment-reject">{approved ? "Change original request to: reject" : "Original request: reject"}</button>
+    </div>
+  );
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", onKey);
@@ -368,7 +415,7 @@ function Details({ c, note, onNote, onAction, onRetry, pending, saving, message,
         <p className="mt-1 text-xs text-white/50" data-testid="lane-owner">
           {c.lane === "review" ? "Your Review: Hermie accepted this internal draft. Acceptance is not publication — the website has not changed."
             : c.lane === "needs_you" ? (c.kind === "decide" ? "Needs You: assignment decision on the original request — this is not a finished draft." : "Needs You: answer the exact recorded request in notes.")
-            : c.lane === "hermie" ? "Hermie owns the next step — nothing for you to do here. Any output below is shown for information; its panel offers decisions only when its own checks allow, and says why when not."
+            : c.lane === "hermie" ? "Hermie owns the next step — nothing for you to do here. Any output below is shown for information only; draft decisions open when the card reaches Your Review."
             : `${LANES.find((l) => l.id === c.lane)?.label ?? c.lane}: no action needed from you.`}
         </p>
         {c.question ? <p className="mt-2 whitespace-pre-wrap break-words rounded-lg border border-amber-400/25 bg-amber-500/10 p-2 text-amber-100" data-testid="input-question"><span className="font-semibold">Exact request recorded on the card:</span> {c.question}</p> : null}
@@ -383,37 +430,7 @@ function Details({ c, note, onNote, onAction, onRetry, pending, saving, message,
           Hermie’s earlier “{c.staleDisposition.kind}” decision is stale ({c.staleDisposition.why}). {c.staleDisposition.superseded ? "New linked work takes precedence; the old decision is not applied." : "Not settled until Hermie reconciles it."}
         </p> : null}
 
-        {c.linked.length ? <OutputReviewPanel recordId={c.id} onChange={onOutputChange} /> : null}
-
-        <h3 className="mt-4 text-[11px] font-black uppercase tracking-[0.16em] text-white/40">Original request (assignment &amp; evidence)</h3>
-        <dl className="mt-1 grid grid-cols-[8rem_1fr] gap-x-2 gap-y-1 text-white/65">
-          <dt className="text-white/40">Decision</dt><dd>{a.savedDecision ?? "not set"}</dd>
-          <dt className="text-white/40">Saved status</dt><dd className="break-words">{a.savedStatus ?? "not set"} <span className="text-white/35">(label, not execution evidence)</span></dd>
-          <dt className="text-white/40">Approved at</dt><dd>{a.approvedAt || "—"}</dd>
-          <dt className="text-white/40">Level / category</dt><dd>{a.approvalLevel || "—"} · {a.category || "—"}</dd>
-          <dt className="text-white/40">Card version</dt><dd className="font-mono text-xs">{a.version ?? "unknown"}</dd>
-          <dt className="text-white/40">Supervisor</dt>
-          <dd className="break-words text-xs" data-testid="supervisor-facts">
-            {sup ? `${sup.class} · read v${sup.version.slice(0, 8)} at ${fmt(sup.read_at)} (${sup.read_source === "fresh_record" ? "fresh card read" : "snapshot"})${sup.version !== a.version ? " · OLDER than the card" : ""}${sup.disposition ? ` · Hermie: ${sup.disposition.kind}${sup.disposition.version_current ? "" : " (stale)"}${sup.disposition.observed_matches === false ? " (task state changed since)" : ""}` : ""}` : "not read"}
-          </dd>
-          <dt className="text-white/40">Linked tasks</dt>
-          <dd className="break-words">
-            {c.linked.length ? c.linked.map((t) => (
-              <span key={t.task_id} className="mr-2 block">
-                <Link href={`/tasks/${t.task_id}`} className="font-mono text-emerald-300 hover:text-emerald-200">{t.task_id}</Link>{" "}
-                <span className="text-xs text-white/45">{t.status}{t.liveness ? ` · worker ${t.liveness}` : ""}{t.phase ? ` · ${t.phase.phase === "review" ? "reviewer run" : t.phase.phase === "implementation" ? "author run" : "phase unknown"}${t.phase.evidence === "prior_outcome" ? " (from last outcome)" : ""}` : ""}{t.last_outcome && t.last_outcome !== "none" ? ` · last ${t.last_outcome}` : ""}{t.has_result ? " · result" : ""}{t.has_attachments ? " · files" : ""}</span>
-              </span>
-            )) : "None linked"}
-          </dd>
-        </dl>
-
-        <div className="mt-3 space-y-2 text-white/65">
-          <p className="whitespace-pre-wrap break-words"><span className="font-semibold text-white/80">Why:</span> {text(a.businessReason)}</p>
-          <p className="whitespace-pre-wrap break-words"><span className="font-semibold text-white/80">Change:</span> {text(a.proposedChange)}</p>
-          <p className="whitespace-pre-wrap break-words"><span className="font-semibold text-white/80">Evidence:</span> {text(a.evidence)}</p>
-          <p className="whitespace-pre-wrap break-words"><span className="font-semibold text-white/80">Risk:</span> {text(a.riskNote)}</p>
-          {a.affectedUrl ? <a className="block break-all text-emerald-300/80 hover:text-emerald-200" href={a.affectedUrl} target="_blank" rel="noreferrer">{a.affectedUrl}</a> : null}
-        </div>
+        {c.linked.length ? <OutputReviewPanel recordId={c.id} onChange={onOutputChange} eligibility={eligibility} /> : null}
 
         <label className="mt-4 block text-[11px] font-black uppercase tracking-[0.16em] text-white/40" htmlFor={`notes-${a.id}`}>Fonz notes</label>
         <textarea id={`notes-${a.id}`} value={note} disabled={locked} onChange={(e) => onNote(e.target.value)} placeholder="Add notes or answer the request…"
@@ -423,7 +440,7 @@ function Details({ c, note, onNote, onAction, onRetry, pending, saving, message,
         {message ? <p className="mt-2 break-words rounded-lg border border-white/10 bg-white/[0.04] p-2 text-white/80" data-testid="action-message" role="status">{message}</p> : null}
         {pending && !saving ? (
           <div className="mt-2 rounded-lg border border-rose-400/25 bg-rose-500/10 p-2 text-rose-100" data-testid="retry-panel">
-            <p>Unsaved: <span className="font-mono">{pending.action}</span> on this card{pending.baseVersion ? ` (card v${pending.baseVersion.slice(0, 8)})` : ""}. Retry sends the same request.</p>
+            <p title={pending.baseVersion ? `card version ${pending.baseVersion}` : undefined}>Unsaved: {ACTION_LABEL[pending.action]} on this card. Retry sends the same request.</p>
             <div className="mt-2 flex flex-wrap gap-2">
               <button onClick={onRetry} className="rounded-lg bg-rose-200 px-3 py-1.5 text-sm font-bold text-black">Retry {pending.action}</button>
             </div>
@@ -431,23 +448,58 @@ function Details({ c, note, onNote, onAction, onRetry, pending, saving, message,
         ) : null}
 
         <section className="mt-4 rounded-xl border border-white/10 p-3" data-testid="assignment-decision" aria-label="Original assignment decision">
-          <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-white/40">Original assignment decision (separate from any draft review above)</h3>
+          <h3 className="text-[11px] font-black uppercase tracking-[0.16em] text-white/40">Original request decision (separate from any draft review above)</h3>
           {approved ? (
-            <p className="mt-1 text-white/75" data-testid="assignment-approved" role="status">Assignment approved{a.approvedAt ? ` ${a.approvedAt}` : ""} — permission only. Nothing was started or published by it; no re-approval is needed.</p>
+            <>
+              <p className="mt-1 text-white/75" data-testid="assignment-approved" role="status">Original request approved{a.approvedAt ? ` ${fmt(a.approvedAt)}` : ""} — permission only. Nothing was started or published by it; no re-approval is needed.</p>
+              <details className="mt-2" data-testid="assignment-change">
+                <summary className="cursor-pointer text-xs text-white/55">Change the original request decision</summary>
+                {assignmentControls}
+                <p className="mt-1 text-[11px] text-white/40">{DECISION_BOUNDARY} There is no execute button here.</p>
+              </details>
+            </>
           ) : (
-            <p className="mt-1 text-xs text-white/45">{DECISION_BOUNDARY} There is no execute button here.</p>
+            <>
+              <p className="mt-1 text-xs text-white/45">{DECISION_BOUNDARY} There is no execute button here.</p>
+              {assignmentControls}
+            </>
           )}
-          <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="assignment-controls">
-            {!approved ? (
-              <button disabled={locked} onClick={() => onAction("approve")} className="rounded-xl bg-emerald-300 px-3 py-2 font-bold text-black disabled:opacity-50 sm:col-span-2" data-testid="assignment-approve">
-                {saving ? "Saving…" : "Record approval (permission only)"}
-              </button>
-            ) : null}
-            <button disabled={locked} onClick={() => onAction("needs_changes")} className="rounded-xl border border-amber-300/20 bg-amber-500/10 px-3 py-2 font-bold text-amber-100 disabled:opacity-50">{approved ? "Change assignment: needs changes" : "Needs changes"}</button>
-            <button disabled={locked} onClick={() => onAction("reject")} className="rounded-xl border border-rose-300/20 bg-rose-500/10 px-3 py-2 font-bold text-rose-100 disabled:opacity-50">{approved ? "Change assignment: reject" : "Reject"}</button>
-          </div>
-          {approved ? <p className="mt-1 text-[11px] text-white/40">{DECISION_BOUNDARY} There is no execute button here.</p> : null}
         </section>
+
+        {/* Technical evidence (raw supervisor facts, task ids, original request fields): closed by default. */}
+        <details className="mt-4 rounded-xl border border-white/10 p-3 text-white/65" data-testid="original-details">
+          <summary className="cursor-pointer text-xs font-semibold text-white/60">Details · original request and history</summary>
+          <h3 className="mt-2 text-[11px] font-black uppercase tracking-[0.16em] text-white/40">Original request (assignment &amp; evidence)</h3>
+          {c.taskId ? <Link href={`/tasks/${c.taskId}`} className="mt-1 inline-block text-xs text-emerald-300 hover:text-emerald-200" data-testid="task-link" data-task-id={c.taskId}>View task →</Link> : null}
+          <dl className="mt-1 grid grid-cols-[8rem_1fr] gap-x-2 gap-y-1 text-white/65">
+            <dt className="text-white/40">Decision</dt><dd>{a.savedDecision ?? "not set"}</dd>
+            <dt className="text-white/40">Saved status</dt><dd className="break-words">{a.savedStatus ?? "not set"} <span className="text-white/35">(label, not execution evidence)</span></dd>
+            <dt className="text-white/40">Approved at</dt><dd>{a.approvedAt || "—"}</dd>
+            <dt className="text-white/40">Level / category</dt><dd>{a.approvalLevel || "—"} · {a.category || "—"}</dd>
+            <dt className="text-white/40">Card version</dt><dd className="font-mono text-xs">{a.version ?? "unknown"}</dd>
+            <dt className="text-white/40">Supervisor</dt>
+            <dd className="break-words text-xs" data-testid="supervisor-facts">
+              {sup ? `${sup.class} · read v${sup.version.slice(0, 8)} at ${fmt(sup.read_at)} (${sup.read_source === "fresh_record" ? "fresh card read" : "snapshot"})${sup.version !== a.version ? " · OLDER than the card" : ""}${sup.disposition ? ` · Hermie: ${sup.disposition.kind}${sup.disposition.version_current ? "" : " (stale)"}${sup.disposition.observed_matches === false ? " (task state changed since)" : ""}` : ""}` : "not read"}
+            </dd>
+            <dt className="text-white/40">Linked tasks</dt>
+            <dd className="break-words">
+              {c.linked.length ? c.linked.map((t) => (
+                <span key={t.task_id} className="mr-2 block">
+                  <Link href={`/tasks/${t.task_id}`} className="font-mono text-emerald-300 hover:text-emerald-200">{t.task_id}</Link>{" "}
+                  <span className="text-xs text-white/45">{t.status}{t.liveness ? ` · worker ${t.liveness}` : ""}{t.phase ? ` · ${t.phase.phase === "review" ? "reviewer run" : t.phase.phase === "implementation" ? "author run" : "phase unknown"}${t.phase.evidence === "prior_outcome" ? " (from last outcome)" : ""}` : ""}{t.last_outcome && t.last_outcome !== "none" ? ` · last ${t.last_outcome}` : ""}{t.has_result ? " · result" : ""}{t.has_attachments ? " · files" : ""}</span>
+                </span>
+              )) : "None linked"}
+            </dd>
+          </dl>
+
+          <div className="mt-3 space-y-2 text-white/65">
+            <p className="whitespace-pre-wrap break-words"><span className="font-semibold text-white/80">Why:</span> {text(a.businessReason)}</p>
+            <p className="whitespace-pre-wrap break-words"><span className="font-semibold text-white/80">Change:</span> {text(a.proposedChange)}</p>
+            <p className="whitespace-pre-wrap break-words"><span className="font-semibold text-white/80">Evidence:</span> {text(a.evidence)}</p>
+            <p className="whitespace-pre-wrap break-words"><span className="font-semibold text-white/80">Risk:</span> {text(a.riskNote)}</p>
+            {a.affectedUrl ? <a className="block break-all text-emerald-300/80 hover:text-emerald-200" href={a.affectedUrl} target="_blank" rel="noreferrer">{a.affectedUrl}</a> : null}
+          </div>
+        </details>
       </aside>
     </div>
   );

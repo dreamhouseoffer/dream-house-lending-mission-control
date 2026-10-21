@@ -154,6 +154,27 @@ export async function fetchMiloApprovals(config, { transport = defaultTransport,
   return { ok: true, cards, malformed, truncated: Boolean(offset), pages, observedAt: new Date(now()).toISOString() };
 }
 
+/** Read ONE card by exact record id (raw Airtable record). Read-only; same transport/failure contract as the list read. */
+export async function fetchMiloRecord(config, recordId, { transport = defaultTransport } = {}) {
+  if (!config?.configured) return failure("not_configured", "airtable_key_missing");
+  if (typeof recordId !== "string" || !RECORD_ID_RE.test(recordId)) return failure("error", "invalid_record_id");
+  let response;
+  try {
+    response = await transport(miloTableUrl(config, recordId), { headers: miloHeaders(config), cache: "no-store" });
+  } catch {
+    return failure("unavailable", "network_error");
+  }
+  if (!response.ok) return httpFailure(response.status);
+  let data;
+  try {
+    data = await response.json();
+  } catch {
+    return failure("bad_payload", "invalid_json");
+  }
+  if (!data || typeof data !== "object" || data.id !== recordId || !data.fields || typeof data.fields !== "object") return failure("bad_payload", "record_mismatch");
+  return { ok: true, record: data };
+}
+
 // ---- Inbox view helpers -------------------------------------------------------------------------------------------
 
 export const MILO_DECISION_FILTERS = [
